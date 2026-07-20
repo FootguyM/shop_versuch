@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-plex-mono), "SFMono-Regular", Consolas, monospace;
+
+  --color-ink: #0d0e12;
+  --color-ink-soft: #131419;
+  --color-panel: #17181d;
+  --color-hairline: #2a2b32;
+  --color-porcelain: #f1ece3;
+  --color-stone: #9b9790;
+  --color-brass: #c9a24b;
+  --color-brass-soft: #e4c988;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-hairline);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-porcelain);
+  }
+
+  ::selection {
+    background-color: var(--color-brass);
+    color: var(--color-ink);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Signature-Element: die "Ticket"-Karte im Katalog. Die gestrichelte
+     Linie + die Aussparungen links/rechts imitieren die Perforation eines
+     Kinotickets, das die Kante zwischen Vorschaubild und Info-Streifen
+     markiert. */
+  .ticket-perforation {
+    position: relative;
+    border-top: 1px dashed var(--color-hairline);
+  }
+
+  .ticket-perforation::before,
+  .ticket-perforation::after {
+    content: "";
+    position: absolute;
+    top: -7px;
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+  }
+
+  .ticket-perforation::before {
+    left: -7px;
+  }
+
+  .ticket-perforation::after {
+    right: -7px;
+  }
+
+  .admin-input {
+    width: 100%;
+    border-radius: 0.375rem;
+    border: 1px solid var(--color-hairline);
+    background-color: var(--color-ink);
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+    color: var(--color-porcelain);
+  }
+
+  .admin-input:focus {
+    outline: none;
+    border-color: var(--color-brass);
+    box-shadow: 0 0 0 1px var(--color-brass);
+  }
+
+  .grain-overlay {
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(241, 236, 227, 0.06) 1px,
+      transparent 0
+    );
+    background-size: 3px 3px;
+  }
+}
