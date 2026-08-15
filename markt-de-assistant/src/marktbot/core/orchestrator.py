@@ -302,7 +302,7 @@ class Orchestrator:
             text=result.text,
             source_message_id=history[-1].id,
             model_name=result.model_name,
-            note=result.disclosure_note,
+            note=result.warning or result.disclosure_note,
         )
         draft_id = self.storage.add_draft(draft)
 
@@ -318,7 +318,7 @@ class Orchestrator:
 
         if needs_approval:
             await self.notifier.ask_approval(
-                draft_id, thread.partner_name or thread.thread_id, result.text
+                draft_id, thread.partner_name or thread.thread_id, result.text, result.warning
             )
             log.info("Entwurf #%d wartet auf Freigabe.", draft_id)
         else:
@@ -390,6 +390,21 @@ class Orchestrator:
             return False, f"Vom Sicherheitsfilter gestoppt: {outgoing.reason}"
 
         async def _do_send() -> tuple[bool, str]:
+            if self.config.dry_run:
+                # Trockenlauf: Entwurf wird als gesendet vermerkt, verlaesst
+                # den Rechner aber nicht. Alles davor - Abruf, Filter, Modell,
+                # Limits, Telegram - ist identisch zum Echtbetrieb.
+                self.storage.update_draft(
+                    draft_id, status=DraftStatus.SENT, note="TROCKENLAUF - nicht gesendet"
+                )
+                self.storage.log_action(
+                    ACTION_REPLY, thread.thread_id, f"[trocken] {draft.text[:100]}", ok=True
+                )
+                log.info("TROCKENLAUF - nicht gesendet: %s", draft.text[:120])
+                return True, (
+                    f"TROCKENLAUF: nichts gesendet. Der Text waere an "
+                    f"{thread.partner_name or thread.thread_id} gegangen."
+                )
             try:
                 sent = await self.inbox.send_reply(thread, draft.text)
             except Exception as exc:  # noqa: BLE001
@@ -431,6 +446,13 @@ class Orchestrator:
         decision = self.limiter.can_send_reply()
         if not decision.allowed:
             return False, f"Nicht gesendet: {decision.reason}"
+
+        if self.config.dry_run:
+            self.storage.log_action(
+                ACTION_REPLY, thread_id, f"[trocken] {text[:100]}", ok=True
+            )
+            log.info("TROCKENLAUF - nicht gesendet: %s", text[:120])
+            return True, "TROCKENLAUF: nichts gesendet."
 
         async with self.session.lock:
             try:

@@ -185,16 +185,21 @@ class TelegramInterface:
             log.warning("Foto konnte nicht gesendet werden: %s", exc)
             await self.notify(f"{caption}\n(Screenshot: {path})")
 
-    async def ask_approval(self, draft_id: int, thread_title: str, text: str) -> None:
+    async def ask_approval(
+        self, draft_id: int, thread_title: str, text: str, warning: str = ""
+    ) -> None:
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("✅ Senden", callback_data=f"send:{draft_id}"),
             InlineKeyboardButton("✏️ Aendern", callback_data=f"edit:{draft_id}"),
             InlineKeyboardButton("🗑 Verwerfen", callback_data=f"drop:{draft_id}"),
         ]])
+        header = "⚠️ " if warning else "✍️ "
         body = (
-            f"✍️ <b>Entwurf #{draft_id}</b> fuer <b>{html.escape(thread_title)}</b>\n\n"
-            f"{html.escape(text)}"
+            f"{header}<b>Entwurf #{draft_id}</b> fuer <b>{html.escape(thread_title)}</b>\n"
         )
+        if warning:
+            body += f"<b>{html.escape(warning)}</b>\n"
+        body += f"\n{html.escape(text)}"
         await self._send(_shorten(body), reply_markup=keyboard, html=True)
 
     async def _send(
@@ -281,8 +286,10 @@ class TelegramInterface:
                 else "⚡ Vollautomatik"
             )
 
-        lines = [
-            "*Status*",
+        lines = ["*Status*"]
+        if self.config.dry_run:
+            lines.append("🧪 *TROCKENLAUF* - es wird nichts gesendet")
+        lines += [
             mode,
             f"{flag(state.running and not state.paused)} Automatik: "
             f"{'pausiert' if state.paused else 'laeuft' if state.running else 'gestoppt'}",
@@ -298,6 +305,9 @@ class TelegramInterface:
             lines.append(f"Letzter Abruf: {state.last_poll_at:%d.%m. %H:%M} UTC")
         if state.next_poll_at:
             lines.append(f"Naechster Abruf: {state.next_poll_at:%d.%m. %H:%M} UTC")
+        blocker = self.orchestrator.session.blocker
+        if blocker.enabled and blocker.stats.total:
+            lines.append(f"Bandbreitenfilter: {blocker.stats.summary()}")
         if state.last_error:
             lines += ["", f"Letzter Fehler: {state.last_error[:300]}"]
 
@@ -354,6 +364,7 @@ class TelegramInterface:
                 draft.id,
                 (thread.partner_name if thread else "") or draft.thread_id,
                 draft.text,
+                draft.note,
             )
 
     async def cmd_reply(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

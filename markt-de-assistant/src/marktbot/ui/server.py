@@ -153,6 +153,11 @@ class WebUI:
                 "limit_hour": self.config.schedule.limits.replies_per_hour,
                 "quiet_hours": limiter.in_quiet_hours(),
                 "require_approval": self.config.replies.require_approval,
+                "dry_run": self.config.dry_run,
+                "blocked_requests": self.orchestrator.session.blocker.stats.blocked,
+                "blocked_share": round(
+                    self.orchestrator.session.blocker.stats.blocked_share, 1
+                ),
                 "assistant_mode": self.config.assistant.enabled,
                 "assistant_name": self.config.assistant.assistant_name,
                 "last_poll_at": state.last_poll_at.isoformat() if state.last_poll_at else None,
@@ -250,6 +255,7 @@ class WebUI:
                     "partner_name": thread.partner_name if thread else "",
                     "text": draft.text,
                     "model_name": draft.model_name,
+                    "warning": draft.note,
                     "created_at": draft.created_at.isoformat(),
                 })
             return result

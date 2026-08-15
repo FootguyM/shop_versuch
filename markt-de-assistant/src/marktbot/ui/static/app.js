@@ -89,6 +89,7 @@ async function loadStatus() {
   } else {
     mode = status_.require_approval ? 'Freigabe-Modus' : 'Vollautomatik';
   }
+  if (status_.dry_run) mode = `TROCKENLAUF · ${mode}`;
   document.getElementById('mode-line').textContent = `${mode} · KI: ${status_.ai_backend}`;
 
   const pauseBtn = document.getElementById('btn-pause');
@@ -108,6 +109,8 @@ async function loadStatus() {
          status_.replies_today >= status_.limit_day ? 'warn' : ''),
     cell('Nächster Abruf',
          status_.quiet_hours ? 'Ruhezeit' : relTime(status_.next_poll_at).replace('vor', 'in')),
+    cell('Requests geblockt',
+         status_.blocked_requests ? `${status_.blocked_requests} (${status_.blocked_share} %)` : '–'),
   ].join('');
 
   document.getElementById('badge-drafts').textContent = status_.pending_drafts;
@@ -158,6 +161,7 @@ async function loadDrafts() {
         <strong>${esc(draft.partner_name || draft.thread_id)}</strong>
         <span class="meta">#${draft.id} · ${esc(draft.model_name)} · ${relTime(draft.created_at)}</span>
       </div>
+      ${draft.warning ? `<p class="warn-line">⚠️ ${esc(draft.warning)}</p>` : ''}
       <textarea id="draft-text-${draft.id}">${esc(draft.text)}</textarea>
       <div class="card-actions">
         <button class="btn primary" onclick="sendDraft(${draft.id})">Senden</button>

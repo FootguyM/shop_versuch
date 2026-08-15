@@ -29,6 +29,7 @@ from playwright.async_api import (
 
 from ..config import BrowserConfig
 from ..models import utcnow
+from .blocking import ResourceBlocker
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +41,12 @@ class BrowserSession:
         self.config = config
         self.screenshot_dir = Path(screenshot_dir)
         self.screenshot_dir.mkdir(parents=True, exist_ok=True)
+
+        self.blocker = ResourceBlocker(
+            blocked_types=config.blocked_resource_types,
+            blocked_domains=config.blocked_domains,
+            enabled=config.block_resources,
+        )
 
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
@@ -107,11 +114,21 @@ class BrowserSession:
         self._context.set_default_timeout(self.config.nav_timeout * 1000)
         self._context.set_default_navigation_timeout(self.config.nav_timeout * 1000)
 
+        if self.config.block_resources:
+            await self._context.route("**/*", self.blocker.handle)
+            log.info(
+                "Bandbreitenfilter aktiv: %s geblockt, dazu %d Tracker-Domains.",
+                ", ".join(sorted(self.blocker.blocked_types)) or "(nichts)",
+                len(self.blocker.blocked_domains),
+            )
+
         pages = self._context.pages
         self._page = pages[0] if pages else await self._context.new_page()
         return self._page
 
     async def stop(self) -> None:
+        if self.config.block_resources and self.blocker.stats.total:
+            log.info("Bandbreitenfilter: %s", self.blocker.stats.summary())
         try:
             if self._context is not None:
                 await self._context.close()

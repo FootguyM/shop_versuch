@@ -28,6 +28,9 @@ class ReplyResult:
     disclosure_note: str = ""
     # True, wenn statt einer Modellantwort die feste Weiterleitungsformel kam.
     deflected: bool = False
+    # Gesetzt, wenn der Entwurf ein heikles Thema beruehrt und beim Freigeben
+    # besonders genau gelesen werden sollte.
+    warning: str = ""
 
     @classmethod
     def block(cls, reason: str, model_name: str = "") -> ReplyResult:
@@ -103,23 +106,37 @@ class Responder:
         if verdict.is_block:
             return ReplyResult.block(verdict.reason, self.model_name)
 
-        # Heikles Thema. Im Freigabe-Modus wird gar nichts erzeugt; im
-        # Assistenzmodus antwortet die feste Weiterleitungsformel, damit der
-        # Absender nicht ohne Rueckmeldung bleibt.
+        # Heikles Thema. Drei moegliche Wege, je nach Betriebsart.
+        warning = ""
         if verdict.action is SafetyAction.HANDOVER:
-            if not (self.assistant_mode and self.config.assistant.deflect_handover_topics):
+            if self.assistant_mode and self.config.assistant.deflect_handover_topics:
+                # Autonom: feste Weiterleitungsformel, damit der Absender nicht
+                # ohne Rueckmeldung bleibt.
+                text = self.disclosure.deflection(
+                    verdict.label, self.config.assistant.operator_name
+                )
+                log.info("Assistenzmodus weicht aus (Thema: %s).", verdict.label)
+                return ReplyResult(
+                    text=text,
+                    ok=True,
+                    model_name=self.model_name,
+                    deflected=True,
+                    disclosure_note=(
+                        f"Feste Weiterleitungsformel statt Modellantwort ({verdict.label})"
+                    ),
+                )
+            if self.config.replies.require_approval and self.config.replies.draft_sensitive_topics:
+                # Mit Freigabe: Entwurf erzeugen, aber deutlich markieren. Es
+                # liest ohnehin ein Mensch drueber, bevor etwas rausgeht.
+                warning = (
+                    f"Heikles Thema: {verdict.label}. "
+                    "Bitte genau lesen - hier erfindet das Modell besonders gern."
+                )
+                log.info("Entwurf zu heiklem Thema '%s' (Freigabe erforderlich).", verdict.label)
+            else:
                 return ReplyResult.block(
                     verdict.reason + " Das sollte kein Automat beantworten.", self.model_name
                 )
-            text = self.disclosure.deflection(verdict.label, self.config.assistant.operator_name)
-            log.info("Assistenzmodus weicht aus (Thema: %s).", verdict.label)
-            return ReplyResult(
-                text=text,
-                ok=True,
-                model_name=self.model_name,
-                deflected=True,
-                disclosure_note=f"Feste Weiterleitungsformel statt Modellantwort ({verdict.label})",
-            )
 
         turns = build_turns(
             self.config.persona,
@@ -162,6 +179,7 @@ class Responder:
             ok=True,
             model_name=self.model_name,
             disclosure_note=disclosure_note,
+            warning=warning,
         )
 
     def check_manual_text(self, text: str) -> SafetyVerdict:

@@ -19,7 +19,9 @@ class Notifier(Protocol):
 
     async def notify_photo(self, path: str | Path, caption: str = "") -> None: ...
 
-    async def ask_approval(self, draft_id: int, thread_title: str, text: str) -> None: ...
+    async def ask_approval(
+        self, draft_id: int, thread_title: str, text: str, warning: str = ""
+    ) -> None: ...
 
 
 class NullNotifier:
@@ -31,8 +33,10 @@ class NullNotifier:
     async def notify_photo(self, path: str | Path, caption: str = "") -> None:
         log.info("[Notify-Foto] %s (%s)", path, caption)
 
-    async def ask_approval(self, draft_id: int, thread_title: str, text: str) -> None:
-        log.info("[Freigabe #%d] %s -> %s", draft_id, thread_title, text)
+    async def ask_approval(
+        self, draft_id: int, thread_title: str, text: str, warning: str = ""
+    ) -> None:
+        log.info("[Freigabe #%d] %s -> %s %s", draft_id, thread_title, text, warning)
 
 
 class FanoutNotifier:
@@ -62,5 +66,7 @@ class FanoutNotifier:
     async def notify_photo(self, path: str | Path, caption: str = "") -> None:
         await self._fanout("notify_photo", path, caption)
 
-    async def ask_approval(self, draft_id: int, thread_title: str, text: str) -> None:
-        await self._fanout("ask_approval", draft_id, thread_title, text)
+    async def ask_approval(
+        self, draft_id: int, thread_title: str, text: str, warning: str = ""
+    ) -> None:
+        await self._fanout("ask_approval", draft_id, thread_title, text, warning)

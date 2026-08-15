@@ -10,6 +10,8 @@
   python run.py check      Einmal das Postfach abrufen, dann beenden
   python run.py ai-test    KI-Backend testen, ohne den Browser zu starten
   python run.py ads        Anzeigen auflisten, dann beenden
+
+  --dry-run                Zusatz zu jedem Befehl: nichts wird gesendet
 """
 
 from __future__ import annotations
@@ -195,6 +197,8 @@ async def cmd_ai_test(config, text: str) -> int:
         print(f"\n🛑 Vom Sicherheitsfilter gestoppt:\n   {result.reason}")
     elif result.ok:
         label = "Feste Weiterleitungsformel" if result.deflected else "Antwortentwurf"
+        if result.warning:
+            print(f"\n⚠️  {result.warning}")
         print(f"\n💬 {label}:\n   {result.text}")
         if result.disclosure_note:
             print(f"\n   Offenlegung: {result.disclosure_note}")
@@ -217,6 +221,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=__doc__,
     )
     parser.add_argument("-c", "--config", help="Pfad zu config.yaml")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Trockenlauf: alles wie im Echtbetrieb, aber nichts wird an markt.de gesendet",
+    )
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="Alles starten (Standard)")
@@ -267,7 +276,14 @@ def main() -> int:
         print(f"\nKonfigurationsfehler:\n  {exc}\n", file=sys.stderr)
         return 2
 
+    config.dry_run = args.dry_run
     setup_logging(config.logging)
+
+    if config.dry_run:
+        print(
+            "\n  TROCKENLAUF: Es wird nichts an markt.de gesendet.\n"
+            "  Abruf, Filter, KI, Limits und Telegram laufen normal.\n"
+        )
 
     if command == "assistant" and not config.assistant.enabled:
         print(

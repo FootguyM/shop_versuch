@@ -28,6 +28,29 @@ browser:
   # Sekunden, die auf das Laden einer Seite gewartet wird.
   nav_timeout: 45
 
+  # --- Bandbreite sparen ---------------------------------------------------
+  # Entscheidend, wenn ein Residential-Proxy pro Gigabyte abrechnet: Playwright
+  # laedt sonst die komplette Seite inklusive Bildern und Videos, obwohl der
+  # Bot nur Text braucht. Spart in der Praxis den Grossteil des Volumens.
+  block_resources: true
+
+  # Was geblockt wird. Moeglich sind: image, media, font, stylesheet,
+  # websocket, manifest, other.
+  # 'stylesheet' ist bewusst NICHT dabei: ohne CSS aendert sich die
+  # Sichtbarkeit von Elementen, und die Selektoren fangen an zu versagen.
+  # Die paar Kilobyte sind den Aerger nicht wert.
+  blocked_resource_types: ["image", "media", "font"]
+
+  # Zusaetzlich geblockte Domains (Tracking, Werbung, Fremdanalytik).
+  # Auskommentiert lassen = eingebaute Liste verwenden.
+  # blocked_domains:
+  #   - "google-analytics.com"
+  #   - "doubleclick.net"
+
+  # Nicht konfigurierbar und immer erlaubt: alles, dessen URL nach Captcha
+  # aussieht. Sonst bekaemst du bei einer Sicherheitsabfrage einen
+  # Screenshot, auf dem nichts zu sehen ist.
+
 # --- Menschliches Verhalten -------------------------------------------------
 # Der Bot arbeitet bewusst langsam und unregelmaessig. Das schont den Server
 # der Gegenseite und vermeidet das Muster "alle 60 s exakt ein Request".
@@ -138,6 +161,14 @@ replies:
 
   # Entwuerfe, die aelter als X Stunden sind, werden verworfen.
   draft_ttl_hours: 12
+
+  # Auch fuer heikle Themen (Preise, Adressen, Kontaktdaten) einen Entwurf
+  # erzeugen, statt sie unbeantwortet zu lassen. Der Entwurf wird in Telegram
+  # und im Web-UI deutlich als heikel markiert.
+  # Greift nur mit require_approval: true - es liest also ohnehin ein Mensch
+  # drueber. Harte Blocker (Minderjaehrige, Noetigung, Betrug) sind davon nie
+  # betroffen; dort gibt es weiterhin keinen Entwurf, sondern eine Meldung.
+  draft_sensitive_topics: true
 
 # --- Sicherheitsfilter ------------------------------------------------------
 # Greift VOR der KI. Trifft ein Muster zu, wird kein Entwurf erzeugt,

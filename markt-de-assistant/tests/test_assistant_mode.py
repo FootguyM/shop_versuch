@@ -173,3 +173,55 @@ async def test_ohne_assistenzmodus_wird_heikles_thema_blockiert(tmp_path, thread
     responder = Responder(config)
     result = await responder.draft_reply(thread, incoming("Was kostet das denn?"))
     assert result.blocked
+
+
+# --- Freigabe-Modus: Entwuerfe auch fuer heikle Themen ---------------------
+
+REVIEW_CONFIG = BASE_CONFIG.replace("enabled: true", "enabled: false", 1).replace(
+    "require_approval: false", "require_approval: true"
+)
+
+
+async def test_heikles_thema_erzeugt_entwurf_mit_warnung(tmp_path, thread):
+    """Wer jede Nachricht selbst freigibt, will auch fuer Preisfragen einen
+    Vorschlag sehen - aber deutlich markiert."""
+    config = load_config(write_config(tmp_path, REVIEW_CONFIG), root=tmp_path)
+    assert config.replies.draft_sensitive_topics
+
+    responder = Responder(config)
+    result = await responder.draft_reply(thread, incoming("Was kostet das denn?"))
+
+    assert result.ok, "mit Freigabe soll ein Entwurf entstehen"
+    assert result.warning
+    assert "Geld und Preise" in result.warning
+    assert not contains_disclosure(result.text), "kein KI-Hinweis im Freigabe-Modus"
+
+
+async def test_harte_blocker_erzeugen_nie_einen_entwurf(tmp_path, thread):
+    """Auch mit Freigabe: hier soll kein fertiger Text zum Durchwinken liegen."""
+    config = load_config(write_config(tmp_path, REVIEW_CONFIG), root=tmp_path)
+    responder = Responder(config)
+    result = await responder.draft_reply(thread, incoming("Suchst du auch Leute unter 18?"))
+
+    assert result.blocked
+    assert not result.text
+
+
+async def test_abschaltbar(tmp_path, thread):
+    body = REVIEW_CONFIG.replace(
+        "  require_approval: true", "  require_approval: true\n  draft_sensitive_topics: false"
+    )
+    config = load_config(write_config(tmp_path, body), root=tmp_path)
+    responder = Responder(config)
+    result = await responder.draft_reply(thread, incoming("Was kostet das denn?"))
+    assert result.blocked
+
+
+async def test_ohne_freigabe_kein_entwurf_zu_heiklen_themen(tmp_path, thread):
+    """Vollautomatik ohne Assistenzmodus: heikle Themen bleiben blockiert."""
+    body = BASE_CONFIG.replace("enabled: true", "enabled: false", 1)
+    config = load_config(write_config(tmp_path, body), root=tmp_path)
+    assert not config.replies.require_approval
+    responder = Responder(config)
+    result = await responder.draft_reply(thread, incoming("Wie ist deine Adresse?"))
+    assert result.blocked

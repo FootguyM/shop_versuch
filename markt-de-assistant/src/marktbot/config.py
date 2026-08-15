@@ -94,6 +94,11 @@ class BrowserConfig:
     # Auf ARM (Raspberry Pi) gibt es keine fertigen Playwright-Browser.
     # Dort zeigt PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH auf das System-Chromium.
     executable_path: str = ""
+    # Bandbreite sparen - entscheidend, wenn ein Residential-Proxy pro GB
+    # abrechnet. None bedeutet "Standardliste verwenden".
+    block_resources: bool = True
+    blocked_resource_types: list[str] | None = None
+    blocked_domains: list[str] | None = None
 
 
 @dataclass(slots=True)
@@ -173,6 +178,11 @@ class RepliesConfig:
     disclosure: str = ""
     always_approve_first_contact: bool = True
     draft_ttl_hours: int = 12
+    # Auch fuer heikle Themen (Preise, Adressen, Kontaktdaten) einen Entwurf
+    # erzeugen, statt sie unbeantwortet zu lassen. Greift nur zusammen mit
+    # require_approval - dann liest ohnehin ein Mensch drueber, und der Entwurf
+    # wird deutlich als heikel markiert. Harte Blocker sind nie betroffen.
+    draft_sensitive_topics: bool = True
 
 
 @dataclass(slots=True)
@@ -264,6 +274,9 @@ class Config:
     telegram: TelegramConfig
     logging: LoggingConfig
     data_dir: Path = Path("data")
+    # Trockenlauf: alles wie im Echtbetrieb, nur wird nichts an markt.de
+    # gesendet. Wird von run.py --dry-run gesetzt, nicht aus der YAML.
+    dry_run: bool = False
 
     @property
     def db_path(self) -> Path:
@@ -322,6 +335,9 @@ def load_config(config_path: str | Path | None = None, root: str | Path | None =
             password=os.getenv("PROXY_PASSWORD", "").strip(),
         ),
         executable_path=os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH", "").strip(),
+        block_resources=bool(_get(raw, "browser.block_resources", True)),
+        blocked_resource_types=_get(raw, "browser.blocked_resource_types", None),
+        blocked_domains=_get(raw, "browser.blocked_domains", None),
     )
     if browser.use_proxy and not browser.proxy.configured:
         raise ConfigError(
@@ -402,6 +418,7 @@ def load_config(config_path: str | Path | None = None, root: str | Path | None =
         disclosure=(_get(raw, "replies.disclosure", "") or "").strip(),
         always_approve_first_contact=bool(_get(raw, "replies.always_approve_first_contact", True)),
         draft_ttl_hours=int(_get(raw, "replies.draft_ttl_hours", 12)),
+        draft_sensitive_topics=bool(_get(raw, "replies.draft_sensitive_topics", True)),
     )
 
     assistant = AssistantConfig(

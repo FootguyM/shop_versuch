@@ -21,6 +21,8 @@ API-Token** gebraucht.
 - [Schnellstart Raspberry Pi](#schnellstart-raspberry-pi)
 - [Konfiguration](#konfiguration)
 - [Modellwahl](#modellwahl)
+- [In der Cloud testen](#in-der-cloud-testen)
+- [Bandbreite und Residential Proxy](#bandbreite-und-residential-proxy)
 - [Telegram](#telegram)
 - [Web-UI](#web-ui)
 - [Anzeigen verwalten](#anzeigen-verwalten)
@@ -54,6 +56,8 @@ Web-UI. Der Unterschied liegt allein im Antwortverhalten.
 |---|---|
 | **Postfach** | Ruft in unregelmäßigen Abständen neue Nachrichten ab, speichert Verläufe, erzeugt Antwortentwürfe |
 | **Freigabe** | Jeder Entwurf geht per Telegram oder Web-UI an dich: Senden / Ändern / Verwerfen |
+| **Trockenlauf** | `--dry-run` durchläuft alles, sendet aber nichts an markt.de |
+| **Bandbreite** | Bilder, Videos, Fonts und Tracker werden geblockt - wichtig bei Proxy-Abrechnung pro GB |
 | **Anzeigen** | Auflisten, aus Vorlage neu aufgeben, bearbeiten, hochschieben, pausieren, löschen |
 | **Sicherheit** | Filter stoppt Themen, die kein Automat beantworten darf, und eskaliert an dich |
 | **Limits** | Obergrenzen pro Stunde und Tag, Mindestabstand zwischen Nachrichten, Ruhezeiten |
@@ -74,6 +78,19 @@ neue Nachricht  →  Sicherheitsfilter  →  KI erzeugt Entwurf  →  Filter pr�
                                                                         │
                                               Telegram/Web-UI: [Senden] [Ändern] [Verwerfen]
 ```
+
+Weil du jede Nachricht vor dem Absenden liest, bist du der Absender — die KI ist
+ein Schreibwerkzeug wie eine Textvorlage. Ein KI-Hinweis ist in diesem Modus
+deshalb nicht nötig und standardmäßig auch nicht gesetzt (`replies.disclosure: ""`).
+
+**Heikle Themen bekommen einen Entwurf mit Warnung.** Fragt jemand nach Preisen,
+Adressen oder Kontaktdaten, entsteht trotzdem ein Vorschlag — markiert mit
+`⚠️ Heikles Thema`, weil das Modell genau dort gern erfindet. Abschaltbar über
+`replies.draft_sensitive_topics: false`.
+
+**Harte Blocker erzeugen nie einen Entwurf.** Bei Minderjährigen, Nötigung oder
+Betrugsmustern soll dir kein fertiger Text vorliegen, den man im Vorbeigehen
+durchwinkt. Stattdessen wird der Thread markiert und du bekommst eine Meldung.
 
 Vollautomatik lässt sich einschalten (`replies.require_approval: false`), dann
 verschickt der Assistent Entwürfe direkt. Das ist eine bewusste Entscheidung mit
@@ -341,6 +358,114 @@ Weitere Backends (`ai.backend` in `config.yaml`):
 - `transformers` – volle Modellauswahl über torch, nur für den PC mit viel RAM
 - `hf_inference` – Hugging Face Inference API, schnell, **braucht ein Token**
 - `template` – keine KI, feste Textbausteine; zum Testen ohne GB-Download
+
+---
+
+## In der Cloud testen
+
+Bevor der Pi angefasst wird, lässt sich fast alles woanders prüfen. Zwei Dinge
+sind dabei sauber zu trennen: **die Software** kannst du überall testen, die
+**Verbindung zu markt.de** solltest du nicht aus einem Rechenzentrum aufbauen —
+eine fremde Datacenter-IP an deinem Account ist genau das Muster, das eine
+Sicherheitsabfrage auslöst.
+
+### Trockenlauf
+
+Der Schalter dafür hängt an jedem Befehl:
+
+```bash
+python run.py --dry-run
+```
+
+Abruf, Sicherheitsfilter, KI, Rate-Limits, Telegram und Web-UI laufen exakt wie
+im Echtbetrieb. Nur der letzte Schritt — das Absenden an markt.de — wird
+übersprungen und stattdessen protokolliert. Telegram und Dashboard schreiben
+`TROCKENLAUF` in die Statuszeile, damit kein Zweifel aufkommt.
+
+### Wo testen
+
+| Umgebung | Wofür | Kosten |
+|---|---|---|
+| **Oracle Cloud Free Tier (ARM)** | Der beste Test vor dem Pi: `aarch64`, also dieselbe Architektur. Du prüfst den llama.cpp-Build, das Modelltempo und `setup_pi.sh` unter realen Bedingungen. | kostenlos |
+| **Hetzner CAX11 (ARM)** | Dasselbe, aber zuverlässig verfügbar und in Deutschland | ~4 €/Monat |
+| **GitHub Codespaces** | Schnell für Web-UI, Telegram, Sicherheitsfilter und KI. x86, sagt also nichts über das Pi-Tempo aus. | 60 h/Monat frei |
+
+Auf einer ARM-Instanz ist die Reihenfolge dieselbe wie auf dem Pi — nur dass ein
+Fehlschlag nichts kostet:
+
+```bash
+./scripts/setup_pi.sh                    # baut llama.cpp, dauert 10-25 min
+python run.py ai-test                    # lädt das Modell, misst das Tempo
+python run.py --dry-run headless         # voller Lauf, ohne zu senden
+```
+
+### Was in der Cloud sinnvoll bleibt
+
+Ohne markt.de-Zugriff funktionieren: `ai-test` (Persona, Tonfall,
+Sicherheitsfilter), die komplette Telegram-Steuerung, das Web-UI, die
+Anzeigenvorlagen und `pytest`. Das ist der Großteil dessen, was man vor dem
+Produktivlauf wissen will.
+
+Nur `login`, `doctor`, `check` und `ads` sprechen mit markt.de. Für die gilt:
+entweder von zuhause laufen lassen, oder mit demselben Residential-Proxy, den
+du später auch produktiv nutzt.
+
+---
+
+## Bandbreite und Residential Proxy
+
+Residential-Proxys rechnen pro Gigabyte ab, und Playwright lädt standardmäßig
+die komplette Seite — Bilder, Videos, Fonts, Tracker. Ein einzelner
+Postfach-Aufruf kann zweistellige Megabyte kosten, obwohl der Bot nur ein paar
+Zeilen Text braucht. Bei ein paar hundert Abrufen am Tag übersteigen die
+Proxy-Kosten schnell die Serverkosten.
+
+Der Filter ist deshalb **standardmäßig an**:
+
+```yaml
+browser:
+  block_resources: true
+  blocked_resource_types: ["image", "media", "font"]
+```
+
+Zwei bewusste Ausnahmen:
+
+- **Stylesheets bleiben erlaubt.** Playwright entscheidet über `state="visible"`
+  anhand des tatsächlichen Layouts. Ohne CSS ändert sich die Sichtbarkeit von
+  Elementen, und Selektoren fangen an, sprunghaft zu versagen. Die paar Kilobyte
+  sind den Ärger nicht wert.
+- **Captcha-Ressourcen kommen immer durch**, egal was konfiguriert ist. Sonst
+  bekämst du bei einer Sicherheitsabfrage einen Screenshot, auf dem nichts zu
+  sehen ist.
+
+Wie viel es bringt, steht in `/status` und im Dashboard („Requests geblockt"),
+und beim Beenden im Log. **Screenshots zeigen die Seite dann ohne Bilder** — für
+die Selektor-Diagnose reicht das, und Sicherheitsabfragen sind ja ausgenommen.
+
+### Proxy einrichten
+
+```ini
+# .env
+PROXY_SERVER=http://de.anbieter.com:10000
+PROXY_USERNAME=nutzer-session-abc123-country-de
+PROXY_PASSWORD=...
+```
+
+```yaml
+# config.yaml
+browser:
+  use_proxy: true
+```
+
+**Sticky Sessions sind Pflicht.** Die meisten Anbieter rotieren die IP pro
+Request — das ist für Scraping gedacht und hier ein Totalschaden: Login aus
+Hamburg, Postfach aus München, Antwort aus Köln, alles in einer Minute mit
+demselben Cookie. Achte auf eine Session-Haltedauer von mindestens 10 Minuten
+und Geo-Targeting auf Deutschland. Ohne das ist ein Gerät bei dir zuhause die
+klar bessere Lösung.
+
+**Den Erstlogin nicht über den Proxy machen.** Melde dich lokal an und kopiere
+`profiles/` auf den Server.
 
 ---
 
