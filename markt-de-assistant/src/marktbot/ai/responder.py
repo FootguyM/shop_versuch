@@ -9,9 +9,10 @@ from pathlib import Path
 from ..config import Config
 from ..models import Direction, Message, SafetyVerdict, Thread
 from .base import GenerationError, ReplyBackend
+from .disclosure import DisclosureEngine
 from .huggingface import create_backend
 from .prompt import build_turns, clean_reply
-from .safety import SafetyFilter
+from .safety import SafetyAction, SafetyFilter
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +24,10 @@ class ReplyResult:
     blocked: bool = False
     reason: str = ""
     model_name: str = ""
+    # Im Assistenzmodus: was die Offenlegungsschicht am Text geaendert hat.
+    disclosure_note: str = ""
+    # True, wenn statt einer Modellantwort die feste Weiterleitungsformel kam.
+    deflected: bool = False
 
     @classmethod
     def block(cls, reason: str, model_name: str = "") -> ReplyResult:
@@ -42,6 +47,16 @@ class Responder:
         self.safety = SafetyFilter(
             enabled=config.safety.enabled,
             extra_blocklist=config.safety.extra_blocklist,
+        )
+        self.assistant_mode = config.assistant.enabled
+        self.disclosure = (
+            DisclosureEngine(
+                identification=config.assistant.identification,
+                signature=config.assistant.signature,
+                identify_on_first_reply=config.assistant.identify_on_first_reply,
+            )
+            if self.assistant_mode
+            else None
         )
 
     @property
@@ -67,22 +82,51 @@ class Responder:
 
     # -- Hauptweg -----------------------------------------------------------
 
-    def precheck(self, history: list[Message]) -> SafetyVerdict:
-        """Sicherheitspruefung der letzten eingehenden Nachricht."""
-        last_incoming = next(
-            (m for m in reversed(history) if m.direction is Direction.INCOMING), None
-        )
-        if last_incoming is None:
-            return SafetyVerdict.block("Keine eingehende Nachricht zu beantworten.")
-        return self.safety.check_incoming(last_incoming.body)
+    @staticmethod
+    def _last_incoming(history: list[Message]) -> Message | None:
+        return next((m for m in reversed(history) if m.direction is Direction.INCOMING), None)
+
+    @staticmethod
+    def _is_first_reply(history: list[Message]) -> bool:
+        """Hat der Assistent in dieser Konversation schon einmal geantwortet?"""
+        return not any(m.direction is Direction.OUTGOING for m in history)
 
     async def draft_reply(self, thread: Thread, history: list[Message]) -> ReplyResult:
         """Entwurf erzeugen - inklusive Filter davor und danach."""
-        verdict = self.precheck(history)
-        if not verdict.allowed:
+        incoming = self._last_incoming(history)
+        if incoming is None:
+            return ReplyResult.block("Keine eingehende Nachricht zu beantworten.", self.model_name)
+
+        verdict = self.safety.classify_incoming(incoming.body)
+
+        # Harte Blocker gelten in beiden Modi: hier geht nichts Automatisches raus.
+        if verdict.is_block:
             return ReplyResult.block(verdict.reason, self.model_name)
 
-        turns = build_turns(self.config.persona, thread, history)
+        # Heikles Thema. Im Freigabe-Modus wird gar nichts erzeugt; im
+        # Assistenzmodus antwortet die feste Weiterleitungsformel, damit der
+        # Absender nicht ohne Rueckmeldung bleibt.
+        if verdict.action is SafetyAction.HANDOVER:
+            if not (self.assistant_mode and self.config.assistant.deflect_handover_topics):
+                return ReplyResult.block(
+                    verdict.reason + " Das sollte kein Automat beantworten.", self.model_name
+                )
+            text = self.disclosure.deflection(verdict.label, self.config.assistant.operator_name)
+            log.info("Assistenzmodus weicht aus (Thema: %s).", verdict.label)
+            return ReplyResult(
+                text=text,
+                ok=True,
+                model_name=self.model_name,
+                deflected=True,
+                disclosure_note=f"Feste Weiterleitungsformel statt Modellantwort ({verdict.label})",
+            )
+
+        turns = build_turns(
+            self.config.persona,
+            thread,
+            history,
+            assistant=self.config.assistant if self.assistant_mode else None,
+        )
 
         try:
             raw = await self.backend.generate(turns)
@@ -94,13 +138,42 @@ class Responder:
         if not text:
             return ReplyResult.error("Das Modell hat einen leeren Text geliefert.", self.model_name)
 
+        disclosure_note = ""
+        if self.disclosure is not None:
+            result = self.disclosure.apply(
+                text,
+                incoming=incoming.body,
+                is_first_reply=self._is_first_reply(history),
+            )
+            text = result.text
+            disclosure_note = result.reason
+            if not text:
+                # Der ganze Text bestand aus einer Menschbehauptung.
+                text = self.disclosure.identification
+                disclosure_note = "Antwort war vollstaendig unzulaessig, durch Kennzeichnung ersetzt"
+
         outgoing = self.safety.check_outgoing(text)
         if not outgoing.allowed:
             log.warning("Erzeugter Entwurf wurde vom Filter gestoppt: %s", outgoing.reason)
             return ReplyResult.block(outgoing.reason, self.model_name)
 
-        return ReplyResult(text=text, ok=True, model_name=self.model_name)
+        return ReplyResult(
+            text=text,
+            ok=True,
+            model_name=self.model_name,
+            disclosure_note=disclosure_note,
+        )
 
     def check_manual_text(self, text: str) -> SafetyVerdict:
-        """Auch von Hand getippte Antworten laufen durch den Ausgangsfilter."""
-        return self.safety.check_outgoing(text)
+        """Letzte Kontrolle vor dem Senden - auch fuer von Hand getippte Texte."""
+        verdict = self.safety.check_outgoing(text)
+        if not verdict.allowed:
+            return verdict
+        if self.disclosure is not None:
+            ok, reason = self.disclosure.verify(text)
+            if not ok:
+                return SafetyVerdict.block(
+                    f"{reason} Im Assistenzmodus darf keine Nachricht rausgehen, "
+                    "die sich als Mensch ausgibt."
+                )
+        return SafetyVerdict.ok()

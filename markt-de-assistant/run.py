@@ -2,6 +2,7 @@
 """Einstiegspunkt.
 
   python run.py            Alles starten (Postfach-Automatik, Telegram, Web-UI)
+  python run.py assistant  Autonomer KI-Assistent (config.assistant.yaml)
   python run.py ui         Nur Web-UI und Automatik, ohne Telegram
   python run.py headless   Ohne Web-UI (fuer den Raspberry Pi als Dienst)
   python run.py login      Browser oeffnen und anmelden (Profil vorbereiten)
@@ -169,6 +170,11 @@ async def cmd_ai_test(config, text: str) -> int:
     from marktbot.models import Direction, Message, Thread
 
     print(f"Backend: {config.ai.backend}")
+    if config.assistant.enabled:
+        print(
+            f"Assistenzmodus: {config.assistant.assistant_name} "
+            f"im Auftrag von {config.assistant.operator_name}"
+        )
     responder = Responder(config)
 
     print("Lade Modell (beim ersten Mal laedt es mehrere GB herunter) ...")
@@ -188,7 +194,10 @@ async def cmd_ai_test(config, text: str) -> int:
     if result.blocked:
         print(f"\n🛑 Vom Sicherheitsfilter gestoppt:\n   {result.reason}")
     elif result.ok:
-        print(f"\n💬 Antwortentwurf:\n   {result.text}")
+        label = "Feste Weiterleitungsformel" if result.deflected else "Antwortentwurf"
+        print(f"\n💬 {label}:\n   {result.text}")
+        if result.disclosure_note:
+            print(f"\n   Offenlegung: {result.disclosure_note}")
     else:
         print(f"\n❌ Fehlgeschlagen: {result.reason}")
 
@@ -211,6 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="Alles starten (Standard)")
+    sub.add_parser("assistant", help="Autonomer KI-Assistent (config.assistant.yaml)")
     sub.add_parser("ui", help="Ohne Telegram starten")
     sub.add_parser("headless", help="Ohne Web-UI starten")
     sub.add_parser("login", help="Browser oeffnen und anmelden")
@@ -234,24 +244,52 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+    command = args.command or "run"
+
+    # Der Assistenzmodus hat eine eigene Konfiguration, damit man zwischen
+    # "Entwuerfe zur Freigabe" und "autonom" umschalten kann, ohne jedes Mal
+    # dieselbe Datei umzubauen.
+    config_path = args.config
+    if config_path is None and command == "assistant":
+        config_path = Path(__file__).parent / "config.assistant.yaml"
+        if not config_path.exists():
+            print(
+                f"\n{config_path.name} nicht gefunden.\n"
+                "  cp config.assistant.example.yaml config.assistant.yaml\n"
+                "und dort mindestens assistant.identification ausfuellen.\n",
+                file=sys.stderr,
+            )
+            return 2
 
     try:
-        config = load_config(args.config)
+        config = load_config(config_path)
     except ConfigError as exc:
         print(f"\nKonfigurationsfehler:\n  {exc}\n", file=sys.stderr)
         return 2
 
     setup_logging(config.logging)
 
-    command = args.command or "run"
+    if command == "assistant" and not config.assistant.enabled:
+        print(
+            "\nDiese Konfiguration hat assistant.enabled nicht gesetzt.\n"
+            "Entweder in der Datei einschalten oder 'python run.py run' benutzen.\n",
+            file=sys.stderr,
+        )
+        return 2
 
     if command != "ai-test":
         from marktbot.app import configure_event_loop
         configure_event_loop()
 
     try:
-        if command in ("run", "ui", "headless"):
+        if command in ("run", "assistant", "ui", "headless"):
             from marktbot.app import run_app
+            if config.assistant.enabled and not config.replies.require_approval:
+                print(
+                    f"\n  Assistenzmodus: '{config.assistant.assistant_name}' antwortet autonom.\n"
+                    f"  Jede Konversation beginnt mit:\n"
+                    f"    \"{config.assistant.identification}\"\n"
+                )
             asyncio.run(run_app(
                 config,
                 with_ui=command != "headless",

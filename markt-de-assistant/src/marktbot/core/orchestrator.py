@@ -302,12 +302,19 @@ class Orchestrator:
             text=result.text,
             source_message_id=history[-1].id,
             model_name=result.model_name,
+            note=result.disclosure_note,
         )
         draft_id = self.storage.add_draft(draft)
 
-        needs_approval = self.config.replies.require_approval or (
-            self.config.replies.always_approve_first_contact and thread.is_first_contact
-        )
+        if self.config.assistant.enabled:
+            # Im Assistenzmodus greift die Erstkontakt-Freigabe nicht: die erste
+            # Antwort ist gerade die, die sich als Programm vorstellt. Sie
+            # zurueckzuhalten wuerde den Modus sinnlos machen.
+            needs_approval = self.config.replies.require_approval
+        else:
+            needs_approval = self.config.replies.require_approval or (
+                self.config.replies.always_approve_first_contact and thread.is_first_contact
+            )
 
         if needs_approval:
             await self.notifier.ask_approval(
@@ -315,7 +322,17 @@ class Orchestrator:
             )
             log.info("Entwurf #%d wartet auf Freigabe.", draft_id)
         else:
-            await self.send_draft(draft_id, acquire_lock=False)
+            ok, message = await self.send_draft(draft_id, acquire_lock=False)
+            # Autonom heisst nicht unbeobachtet: du siehst mit, was in deinem
+            # Namen rausgegangen ist, auch wenn du nichts freigeben musst.
+            if ok and self.config.telegram.notify_new_message:
+                note = f"\n_{result.disclosure_note}_" if result.disclosure_note else ""
+                await self.notifier.notify(
+                    f"🤖 *Automatisch geantwortet* an "
+                    f"{thread.partner_name or thread.thread_id}\n\n{result.text}{note}"
+                )
+            elif not ok:
+                await self.notifier.notify(f"⚠️ Automatische Antwort nicht gesendet: {message}")
 
         return draft
 

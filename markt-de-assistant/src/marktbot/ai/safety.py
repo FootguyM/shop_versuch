@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass, field
+from enum import StrEnum
 
 from ..models import SafetyVerdict
 
@@ -106,6 +108,30 @@ def _scan(text: str, groups: dict[str, list[re.Pattern[str]]]) -> tuple[str, lis
     return None
 
 
+class SafetyAction(StrEnum):
+    """Was mit einer eingehenden Nachricht passieren soll."""
+
+    ALLOW = "allow"        # KI darf frei antworten
+    HANDOVER = "handover"  # heikles Thema - nur ausweichen, nicht inhaltlich antworten
+    BLOCK = "block"        # gar keine automatische Antwort, Mensch muss ran
+
+
+@dataclass(slots=True)
+class IncomingVerdict:
+    action: SafetyAction
+    label: str = ""
+    reason: str = ""
+    matched: list[str] = field(default_factory=list)
+
+    @property
+    def allowed(self) -> bool:
+        return self.action is SafetyAction.ALLOW
+
+    @property
+    def is_block(self) -> bool:
+        return self.action is SafetyAction.BLOCK
+
+
 class SafetyFilter:
     def __init__(self, enabled: bool = True, extra_blocklist: list[str] | None = None) -> None:
         self.enabled = enabled
@@ -113,38 +139,63 @@ class SafetyFilter:
 
     # -- Eingehend ----------------------------------------------------------
 
-    def check_incoming(self, text: str) -> SafetyVerdict:
-        """Darf die KI auf diese Nachricht ueberhaupt antworten?"""
+    def classify_incoming(self, text: str) -> IncomingVerdict:
+        """Eingehende Nachricht einordnen.
+
+        Der Unterschied zwischen BLOCK und HANDOVER ist wichtig: bei BLOCK darf
+        ueberhaupt nichts Automatisches raus. Bei HANDOVER ist eine Antwort in
+        Ordnung, solange sie inhaltlich ausweicht - im Assistenzmodus wird
+        daraus eine feste Weiterleitungsformel statt einer Modellantwort.
+        """
         if not self.enabled or not text.strip():
-            return SafetyVerdict.ok()
+            return IncomingVerdict(SafetyAction.ALLOW)
 
         hit = _scan(text, HARD_BLOCK)
         if hit:
             label, matched = hit
             log.warning("Sicherheitsfilter blockiert eingehende Nachricht: %s", label)
-            return SafetyVerdict.block(
-                f"Nicht automatisch beantwortet - Thema '{label}'. Bitte selbst ansehen.",
-                matched,
+            return IncomingVerdict(
+                SafetyAction.BLOCK,
+                label=label,
+                reason=f"Nicht automatisch beantwortet - Thema '{label}'. Bitte selbst ansehen.",
+                matched=matched,
             )
 
         for pattern in self._extra:
             match = pattern.search(text)
             if match:
-                return SafetyVerdict.block(
-                    "Nicht automatisch beantwortet - eigenes Blocklist-Muster getroffen.",
-                    [match.group(0)],
+                return IncomingVerdict(
+                    SafetyAction.BLOCK,
+                    label="Eigene Blockliste",
+                    reason="Nicht automatisch beantwortet - eigenes Blocklist-Muster getroffen.",
+                    matched=[match.group(0)],
                 )
 
         hit = _scan(text, HANDOVER)
         if hit:
             label, matched = hit
-            return SafetyVerdict.block(
-                f"Uebergabe an dich - hier geht es um '{label}'. "
-                "Das sollte kein Automat beantworten.",
-                matched,
+            return IncomingVerdict(
+                SafetyAction.HANDOVER,
+                label=label,
+                reason=f"Uebergabe an einen Menschen - hier geht es um '{label}'.",
+                matched=matched,
             )
 
-        return SafetyVerdict.ok()
+        return IncomingVerdict(SafetyAction.ALLOW)
+
+    def check_incoming(self, text: str) -> SafetyVerdict:
+        """Darf die KI frei auf diese Nachricht antworten?
+
+        Schmalere Sicht auf `classify_incoming`: alles ausser ALLOW gilt hier
+        als "nicht erlaubt". Das ist das Verhalten im Freigabe-Modus.
+        """
+        verdict = self.classify_incoming(text)
+        if verdict.allowed:
+            return SafetyVerdict.ok()
+        reason = verdict.reason
+        if verdict.action is SafetyAction.HANDOVER:
+            reason += " Das sollte kein Automat beantworten."
+        return SafetyVerdict.block(reason, verdict.matched)
 
     # -- Ausgehend ----------------------------------------------------------
 

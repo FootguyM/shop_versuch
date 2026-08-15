@@ -1,6 +1,7 @@
 # Secrets & lokale Konfiguration
 .env
 config.yaml
+config.assistant.yaml
 *.session
 
 # Browser-Profil (enthaelt Login-Cookies!)

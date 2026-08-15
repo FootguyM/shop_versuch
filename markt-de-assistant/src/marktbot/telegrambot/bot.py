@@ -268,8 +268,22 @@ class TelegramInterface:
         def flag(value: bool) -> str:
             return "✅" if value else "❌"
 
+        assistant = self.config.assistant
+        if assistant.enabled:
+            mode = (
+                f"🤖 Assistenzmodus: {assistant.assistant_name} antwortet "
+                + ("nach Freigabe" if self.config.replies.require_approval else "autonom")
+            )
+        else:
+            mode = (
+                "📝 Freigabe-Modus"
+                if self.config.replies.require_approval
+                else "⚡ Vollautomatik"
+            )
+
         lines = [
             "*Status*",
+            mode,
             f"{flag(state.running and not state.paused)} Automatik: "
             f"{'pausiert' if state.paused else 'laeuft' if state.running else 'gestoppt'}",
             f"{flag(state.logged_in)} Bei markt.de angemeldet",

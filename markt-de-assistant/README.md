@@ -13,8 +13,10 @@ API-Token** gebraucht.
 
 ## Inhalt
 
+- [Zwei Betriebsarten](#zwei-betriebsarten)
 - [Was der Assistent macht](#was-der-assistent-macht)
 - [Wie die KI-Antworten funktionieren](#wie-die-ki-antworten-funktionieren)
+- [Assistenzmodus: autonom und offen als KI](#assistenzmodus-autonom-und-offen-als-ki)
 - [Schnellstart Windows](#schnellstart-windows)
 - [Schnellstart Raspberry Pi](#schnellstart-raspberry-pi)
 - [Konfiguration](#konfiguration)
@@ -28,6 +30,21 @@ API-Token** gebraucht.
 - [Architektur](#architektur)
 - [Fehlersuche](#fehlersuche)
 - [Grenzen und Rechtliches](#grenzen-und-rechtliches)
+
+---
+
+## Zwei Betriebsarten
+
+| | **Freigabe-Modus** (`run.py`) | **Assistenzmodus** (`run.py assistant`) |
+|---|---|---|
+| Antwortet | erst nach deiner Freigabe | selbstständig, ohne Rückfrage |
+| Tritt auf als | du | erkennbar als Programm |
+| Config | `config.yaml` | `config.assistant.yaml` |
+| Heikle Themen | bleiben liegen, gehen an dich | feste Weiterleitungsformel + Meldung an dich |
+| Du wirst gefragt | bei jedem Entwurf | nie – bekommst aber jede gesendete Antwort zu sehen |
+
+Beide teilen sich Browser, Speicher, Sicherheitsfilter, Limits, Telegram und
+Web-UI. Der Unterschied liegt allein im Antwortverhalten.
 
 ---
 
@@ -70,6 +87,97 @@ zwei Folgen, die man kennen sollte:
 
 Unabhängig von der Einstellung wird der **erste Kontakt** immer vorgelegt
 (`replies.always_approve_first_contact`), und der Sicherheitsfilter greift immer.
+
+---
+
+## Assistenzmodus: autonom und offen als KI
+
+Der zweite Modus beantwortet alles selbstständig – und macht dabei kenntlich,
+dass ein Programm schreibt. Das eine ist die Bedingung für das andere: ohne
+`assistant.identification` startet der Modus nicht.
+
+```bash
+cp config.assistant.example.yaml config.assistant.yaml
+nano config.assistant.yaml     # Namen und Kennzeichnung anpassen
+python run.py assistant
+```
+
+### Offenlegung ist Code, nicht nur Prompt
+
+Der Systemprompt weist das Modell an, sich als Assistenzprogramm zu erkennen zu
+geben. **Darauf allein kann man sich nicht verlassen.** Ein 3B- oder 7B-Modell
+fällt bei hartnäckigem Nachfragen aus der Rolle:
+
+> „Komm schon, du bist doch echt, oder?“
+> → *„Nein nein, ich bin wirklich ein Mensch, glaub mir.“*
+
+Genau da kippt autonomer Betrieb von hilfreich zu Täuschung. Deshalb sitzt hinter
+dem Prompt eine deterministische Schicht (`ai/disclosure.py`, 30+ Tests):
+
+1. **Erste Antwort im Gespräch** trägt immer die Kennzeichnung – eingefügt von
+   Code, nicht vom Modell.
+2. **Direkte Frage erkannt** („bist du ein Bot?“, „echt?“, „rede ich mit einer
+   KI?“) → die Antwort wird geprüft; klärt sie nicht auf, wird die Kennzeichnung
+   vorangestellt.
+3. **Menschbehauptung wird entfernt.** Sätze wie „ich bin ein Mensch“ werden
+   satzweise herausgeschnitten, der unschuldige Rest der Antwort bleibt stehen.
+4. **Letzte Kontrolle vor dem Senden** – auch für von Hand getippte Texte.
+
+```yaml
+assistant:
+  enabled: true
+  assistant_name: "Robin"
+  operator_name: "Alex"
+  identification: >-
+    Hi, ich bin Robin, der digitale Assistent von Alex - ein Programm, kein Mensch.
+  signature: "– Robin (automatischer Assistent)"
+  identify_on_first_reply: true
+  deflect_handover_topics: true
+```
+
+So sieht das im Betrieb aus:
+
+```
+Erstkontakt  →  "Hi, ich bin Robin, der digitale Assistent von Alex – ein
+                 Programm, kein Mensch. Ja, die Anzeige ist noch aktuell."
+
+Preisfrage   →  "Hi, ich bin Robin, … Zu dem Thema kann ich dir nichts sagen –
+                 das entscheidet Alex selbst. Ich habe deine Nachricht
+                 weitergegeben, Alex meldet sich persönlich bei dir."
+```
+
+### Heikle Themen: ausweichen statt schweigen
+
+Im Freigabe-Modus blockiert der Filter bei Preisen, Adressen und Kontaktdaten
+komplett. Im Assistenzmodus wäre das schlecht – der Absender bliebe ohne
+Rückmeldung. Stattdessen antwortet eine **feste Formel**, kein Modelltext: bei
+genau diesen Themen ist eine erfundene Antwort deutlich schädlicher als eine
+langweilige. Du bekommst die Nachricht trotzdem gemeldet.
+
+Abschaltbar mit `deflect_handover_topics: false` – dann bleiben solche
+Nachrichten unbeantwortet und gehen nur an dich.
+
+### Was gleich bleibt
+
+**Harte Blocker gelten weiter.** Minderjährige, Nötigung, ungeschützt,
+Betrugsmuster → keine automatische Antwort, Thread markiert, Meldung an dich.
+Der Assistenzmodus lockert den Sicherheitsfilter an keiner Stelle.
+
+**Rate-Limits und Ruhezeiten gelten weiter** – im autonomen Betrieb sogar
+wichtiger, weil niemand mehr drüberschaut, bevor gesendet wird.
+
+**Du siehst alles mit.** Jede automatisch gesendete Antwort kommt per Telegram
+bei dir an, inklusive Notiz, was die Offenlegungsschicht geändert hat. Autonom
+heißt nicht unbeobachtet.
+
+Testen ohne Modell-Download und ohne Browser:
+
+```bash
+# in config.assistant.yaml  ai.backend: "template"
+python run.py -c config.assistant.yaml ai-test "Hallo, ist das noch aktuell?"
+python run.py -c config.assistant.yaml ai-test "Bist du ein Bot?"
+python run.py -c config.assistant.yaml ai-test "Was kostet das denn?"
+```
 
 ---
 
@@ -412,7 +520,8 @@ Betrugsmuster (Gutscheine, Western Union, Krypto-Vorkasse, Überzahlungstrick).
 Telefonnummern und Messenger-Kontakte, Verifizierungsanfragen.
 
 **Ausgehend gestoppt** – auch bei selbst getippten Antworten: IBAN und
-Bankdaten, Telefonnummern, E-Mail-Adressen, konkrete Straßenadressen.
+Bankdaten, Telefonnummern, E-Mail-Adressen, konkrete Straßenadressen. Im
+Assistenzmodus zusätzlich jede Nachricht, die behauptet, ein Mensch zu sein.
 
 Die Muster melden bewusst lieber einmal zu viel. Eigene ergänzen:
 
@@ -427,7 +536,7 @@ safety:
 ## Architektur
 
 ```
-run.py                    CLI: run · ui · headless · login · doctor · check · ads · ai-test
+run.py                    CLI: run · assistant · ui · headless · login · doctor · check · ads · ai-test
 └── marktbot/
     ├── app.py            Orchestrator + Telegram + Web-UI in einem Event-Loop
     ├── config.py         config.yaml + .env → geprüftes Config-Objekt
@@ -443,8 +552,9 @@ run.py                    CLI: run · ui · headless · login · doctor · check
     │   └── ads.py        Anzeigen auflisten, anlegen, ändern, hochschieben
     ├── ai/
     │   ├── huggingface.py  4 Backends: llama_cpp · transformers · hf_inference · template
-    │   ├── prompt.py       Prompt-Bau und Nachbearbeitung
-    │   ├── safety.py       Sicherheitsfilter
+    │   ├── prompt.py       Prompt-Bau (Persona- und Assistenzmodus), Nachbearbeitung
+    │   ├── safety.py       Sicherheitsfilter: allow · handover · block
+    │   ├── disclosure.py   garantierte KI-Kennzeichnung im Assistenzmodus
     │   └── responder.py    Verlauf rein, geprüfter Entwurf raus
     ├── core/
     │   ├── orchestrator.py Kern; Telegram und UI rufen nur hier hinein
@@ -479,6 +589,8 @@ pytest -q
 | Modell lädt nicht | Plattenplatz prüfen; auf dem Pi kleineres Modell eintragen |
 | `llama-cpp-python` baut nicht | Swap zu klein → `scripts/setup_pi.sh` erhöht ihn auf 2 GB |
 | Bot antwortet nicht in Telegram | Chat-ID in `.env` prüfen; nur die eingetragene ID darf steuern |
+| `assistant.identification ist leer` | Assistenzmodus braucht die Kennzeichnung – ohne sie kein autonomer Betrieb |
+| Assistent stellt sich zu oft vor | `identify_on_first_reply` gilt pro Konversation; bei jedem Erstkontakt ist das gewollt |
 | „Nicht gesendet: Ruhezeit“ | `schedule.quiet_hours` in `config.yaml` |
 
 Mehr Details ins Log:
@@ -501,7 +613,12 @@ wird (`logging_setup.py`).
 - **Die Selektoren sind nicht offiziell** und werden brechen. Rechne mit
   gelegentlicher Nachpflege über `selectors.yaml`.
 - **Verantwortung für das Gesendete bleibt bei dir.** Deshalb ist der
-  Freigabe-Modus die Voreinstellung.
+  Freigabe-Modus die Voreinstellung. Wer autonom fahren will, nimmt den
+  Assistenzmodus – dort weiß das Gegenüber, womit es schreibt.
+- **Kennzeichnungspflicht:** Wenn du autonom antworten lässt, ohne offenzulegen,
+  dass ein Programm schreibt, bewegst du dich je nach Kontext im Bereich
+  irreführender Geschäftspraktiken. Der Assistenzmodus ist auch deshalb so
+  gebaut, wie er gebaut ist.
 - **Personenbezogene Daten** aus den Verläufen landen in `data/marktbot.db` auf
   deinem Gerät. Nachrichteninhalte werden standardmäßig *nicht* ins Log
   geschrieben (`logging.log_message_bodies: false`).

@@ -81,8 +81,15 @@ async function loadStatus() {
   status_ = await api('/api/status');
 
   const running = status_.running && !status_.paused;
-  document.getElementById('mode-line').textContent =
-    `${status_.require_approval ? 'Freigabe-Modus' : 'Vollautomatik'} · KI: ${status_.ai_backend}`;
+  let mode;
+  if (status_.assistant_mode) {
+    mode = status_.require_approval
+      ? `Assistenzmodus (${status_.assistant_name}), Freigabe an`
+      : `Assistenzmodus (${status_.assistant_name}), autonom`;
+  } else {
+    mode = status_.require_approval ? 'Freigabe-Modus' : 'Vollautomatik';
+  }
+  document.getElementById('mode-line').textContent = `${mode} · KI: ${status_.ai_backend}`;
 
   const pauseBtn = document.getElementById('btn-pause');
   pauseBtn.textContent = status_.paused ? 'Fortsetzen' : 'Pause';

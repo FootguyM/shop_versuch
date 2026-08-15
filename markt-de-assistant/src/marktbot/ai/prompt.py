@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ..config import PersonaConfig, RepliesConfig
+from ..config import AssistantConfig, PersonaConfig, RepliesConfig
 from ..models import Direction, Message, Thread
 from .base import ChatTurn
 
@@ -30,6 +30,42 @@ Weitere Vorgaben:
 - Wenn du eine Frage nicht beantworten kannst, sag das offen und kurz.
 - Antworte auf Deutsch."""
 
+ASSISTANT_SYSTEM_TEMPLATE = """Du bist "{assistant_name}", ein KI-Assistenzprogramm. Du verwaltest das \
+markt.de-Postfach von {operator_name} und antwortest an dessen Stelle.
+
+Das Wichtigste zuerst - deine Identitaet:
+- Du bist ein Computerprogramm, kein Mensch. Das verschweigst du nie.
+- Fragt jemand, ob du echt bist, ein Bot, eine KI oder ein Mensch: sag klar und
+  ohne Ausweichen, dass du ein Assistenzprogramm bist. Auch beim zweiten und
+  dritten Nachfragen, auch wenn jemand dich zum Gegenteil ueberreden will.
+- Du gibst dich niemals als {operator_name} aus. Du sprichst ueber
+  {operator_name} in der dritten Person.
+- Du behauptest nie, Gefuehle, einen Koerper, Termine oder Erlebnisse zu haben.
+
+Deine Aufgabe:
+- Nachrichten freundlich und knapp beantworten.
+- Allgemeine Fragen zur Anzeige beantworten, soweit du sie aus dem Verlauf
+  belegen kannst.
+- Alles Persoenliche, Verbindliche oder Geschaeftliche an {operator_name}
+  weiterreichen, statt es selbst zu entscheiden.
+
+Tonfall:
+{description}
+
+Feste Regeln:
+{rules}
+
+Diese Themen entscheidest du NICHT. Sag kurz, dass {operator_name} sich
+persoenlich dazu meldet:
+{handover}
+
+Weitere Vorgaben:
+- Schreibe ausschliesslich die Antwort. Keine Erklaerungen ueber dich selbst,
+  ausser du wirst danach gefragt. Keine Anfuehrungszeichen um den Text.
+- Halte dich kurz. Zwei bis drei Saetze sind das Maximum.
+- Erfinde nichts. Wenn du etwas nicht weisst, sag genau das.
+- Antworte auf Deutsch, per Du."""
+
 CONTEXT_TEMPLATE = """Kontext zur Konversation:
 - Gespraechspartner: {partner}
 - Bezug zur Anzeige: {ad_title}
@@ -54,13 +90,35 @@ def build_system_prompt(persona: PersonaConfig) -> str:
     )
 
 
+def build_assistant_system_prompt(
+    persona: PersonaConfig, assistant: AssistantConfig
+) -> str:
+    """Systemprompt fuer den Assistenzmodus - offen als KI auftretend."""
+    rules = "\n".join(f"- {rule}" for rule in persona.rules) or "- (keine zusaetzlichen Regeln)"
+    handover = (
+        "\n".join(f"- {topic}" for topic in persona.handover_topics) or "- (keine)"
+    )
+    return ASSISTANT_SYSTEM_TEMPLATE.format(
+        assistant_name=assistant.assistant_name,
+        operator_name=assistant.operator_name or persona.display_name,
+        description=persona.description or "Sachlich, freundlich, knapp.",
+        rules=rules,
+        handover=handover,
+    )
+
+
 def build_turns(
     persona: PersonaConfig,
     thread: Thread,
     history: list[Message],
     max_history: int = 12,
+    assistant: AssistantConfig | None = None,
 ) -> list[ChatTurn]:
-    """System-Prompt + Verlauf in eine Chat-Turn-Liste giessen."""
+    """System-Prompt + Verlauf in eine Chat-Turn-Liste giessen.
+
+    Mit `assistant` wird der Assistenzmodus verwendet: das Modell tritt offen
+    als Programm auf, statt die Person zu spielen.
+    """
     recent = history[-max_history:]
     lines = []
     for message in recent:
@@ -74,10 +132,12 @@ def build_turns(
         history="\n".join(lines) or "(kein Verlauf vorhanden)",
     )
 
-    return [
-        ChatTurn("system", build_system_prompt(persona)),
-        ChatTurn("user", context),
-    ]
+    system = (
+        build_assistant_system_prompt(persona, assistant)
+        if assistant is not None
+        else build_system_prompt(persona)
+    )
+    return [ChatTurn("system", system), ChatTurn("user", context)]
 
 
 # --------------------------------------------------------------------------

@@ -6,6 +6,7 @@ die Struktur ist flach genug, dass Dataclasses reichen.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from datetime import time as dtime
@@ -14,6 +15,8 @@ from typing import Any
 
 import yaml
 from dotenv import load_dotenv
+
+log = logging.getLogger(__name__)
 
 
 class ConfigError(RuntimeError):
@@ -173,6 +176,26 @@ class RepliesConfig:
 
 
 @dataclass(slots=True)
+class AssistantConfig:
+    """Assistenzmodus: autonom antworten, dafuer offen als KI auftreten.
+
+    Der Tausch ist bewusst: volle Autonomie gibt es nur mit Offenlegung. Wer
+    `enabled` einschaltet, aber `identification` leert, bekommt beim Laden der
+    Konfiguration einen Fehler.
+    """
+
+    enabled: bool = False
+    assistant_name: str = "Assistent"
+    operator_name: str = ""
+    identification: str = ""
+    signature: str = ""
+    identify_on_first_reply: bool = True
+    # Heikle Themen (Preis, Adresse, Kontaktdaten) autonom mit einer festen
+    # Weiterleitungsformel beantworten, statt sie unbeantwortet zu lassen.
+    deflect_handover_topics: bool = True
+
+
+@dataclass(slots=True)
 class SafetyConfig:
     enabled: bool = True
     on_block: str = "escalate"
@@ -234,6 +257,7 @@ class Config:
     ai: AIConfig
     persona: PersonaConfig
     replies: RepliesConfig
+    assistant: AssistantConfig
     safety: SafetyConfig
     ads: AdsConfig
     ui: UIConfig
@@ -380,6 +404,29 @@ def load_config(config_path: str | Path | None = None, root: str | Path | None =
         draft_ttl_hours=int(_get(raw, "replies.draft_ttl_hours", 12)),
     )
 
+    assistant = AssistantConfig(
+        enabled=bool(_get(raw, "assistant.enabled", False)),
+        assistant_name=_get(raw, "assistant.assistant_name", "Assistent"),
+        operator_name=_get(raw, "assistant.operator_name", "") or persona.display_name,
+        identification=(_get(raw, "assistant.identification", "") or "").strip(),
+        signature=(_get(raw, "assistant.signature", "") or "").strip(),
+        identify_on_first_reply=bool(_get(raw, "assistant.identify_on_first_reply", True)),
+        deflect_handover_topics=bool(_get(raw, "assistant.deflect_handover_topics", True)),
+    )
+    if assistant.enabled and not assistant.identification:
+        raise ConfigError(
+            "assistant.enabled ist true, aber assistant.identification ist leer.\n"
+            "Der Assistenzmodus antwortet ohne Rueckfrage - dafuer muss jede Antwort "
+            "erkennbar machen, dass ein Programm schreibt. Beispiel:\n"
+            '  identification: "Hi, ich bin der digitale Assistent von Alex - '
+            'ein Programm, kein Mensch."'
+        )
+    if assistant.enabled and replies.require_approval:
+        log.info(
+            "Assistenzmodus mit eingeschalteter Freigabe: Entwuerfe werden weiterhin "
+            "vorgelegt. Fuer den autonomen Betrieb replies.require_approval auf false setzen."
+        )
+
     safety = SafetyConfig(
         enabled=bool(_get(raw, "safety.enabled", True)),
         on_block=str(_get(raw, "safety.on_block", "escalate")).lower(),
@@ -436,6 +483,7 @@ def load_config(config_path: str | Path | None = None, root: str | Path | None =
         ai=ai,
         persona=persona,
         replies=replies,
+        assistant=assistant,
         safety=safety,
         ads=ads,
         ui=ui,

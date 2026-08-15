@@ -1,0 +1,158 @@
+# ===========================================================================
+#  Assistenzmodus - autonom antwortender KI-Assistent
+#
+#  Kopieren nach "config.assistant.yaml" und anpassen, dann starten mit:
+#      python run.py assistant
+#
+#  Unterschied zum Standardmodus (config.yaml):
+#    - Es wird ohne Rueckfrage geantwortet.
+#    - Dafuer tritt der Assistent offen als Programm auf und gibt sich nie als
+#      Mensch aus. Das ist keine Einstellungssache, sondern eine Bedingung:
+#      ohne assistant.identification verweigert der Start.
+#
+#  Zugangsdaten bleiben in .env - hier steht nur Verhalten.
+# ===========================================================================
+
+# --- Der Assistent ----------------------------------------------------------
+assistant:
+  enabled: true
+
+  # Wie der Assistent heisst. Bewusst ein anderer Name als deiner, damit die
+  # Trennung klar ist.
+  assistant_name: "Robin"
+
+  # In wessen Auftrag geantwortet wird. Ueber diese Person spricht der
+  # Assistent in der dritten Person.
+  operator_name: "Alex"
+
+  # DIE zentrale Zeile. Sie wird der ersten Antwort in jeder Konversation
+  # vorangestellt und immer dann, wenn jemand nach der Identitaet fragt.
+  # Kurz halten - sie steht am Anfang der Nachricht.
+  identification: >-
+    Hi, ich bin Robin, der digitale Assistent von Alex - ein Programm, kein
+    Mensch.
+
+  # Kurzer Zusatz unter allen uebrigen Antworten. Leer lassen, wenn nur die
+  # erste Nachricht gekennzeichnet werden soll.
+  signature: "– Robin (automatischer Assistent)"
+
+  # Erste Antwort im Gespraech traegt immer die Kennzeichnung.
+  identify_on_first_reply: true
+
+  # Heikle Themen (Preis, Adresse, Kontaktdaten) mit einer festen Formel
+  # beantworten, statt sie unbeantwortet liegen zu lassen. Der Assistent sagt
+  # dann, dass er dazu nichts entscheidet und du dich meldest.
+  # false = solche Nachrichten bleiben unbeantwortet und gehen nur an dich.
+  deflect_handover_topics: true
+
+# --- Antwortverhalten -------------------------------------------------------
+replies:
+  # Das ist der autonome Betrieb. Nur sinnvoll zusammen mit assistant.enabled.
+  require_approval: false
+
+  # Im Assistenzmodus nicht noetig - die Kennzeichnung uebernimmt das, und die
+  # Erstkontakt-Freigabe wird im Assistenzmodus ohnehin uebersprungen.
+  always_approve_first_contact: false
+
+  # Leer lassen: die Offenlegung laeuft ueber assistant.identification und
+  # assistant.signature, nicht ueber diesen Zusatz.
+  disclosure: ""
+
+  draft_ttl_hours: 12
+
+# --- Tonfall ----------------------------------------------------------------
+persona:
+  display_name: "Alex"
+  description: >
+    Sachlich, freundlich, hilfsbereit. Kurze Saetze, kein Marketing-Sprech.
+    Erklaert ruhig, was er kann und was nicht.
+  rules:
+    - "Antworte auf Deutsch, per Du."
+    - "Maximal 3 kurze Saetze."
+    - "Sprich ueber Alex in der dritten Person, nie als Alex."
+    - "Keine Preise, Adressen, Telefonnummern oder Kontodaten nennen."
+    - "Keine Termine zusagen - nur ausrichten, dass Alex sich meldet."
+    - "Nichts erfinden. Was du nicht weisst, sagst du offen."
+  handover_topics:
+    - "Preisverhandlung"
+    - "Adresse oder Anfahrt"
+    - "Bezahlung, Anzahlung, Gutscheine"
+    - "Verbindliche Termine"
+    - "Verifizierung, Ausweis, Fotos auf Anfrage"
+
+# --- Sicherheitsfilter ------------------------------------------------------
+# Bleibt im Assistenzmodus vollstaendig aktiv. Harte Blocker fuehren weiterhin
+# dazu, dass gar nichts rausgeht und du benachrichtigt wirst.
+safety:
+  enabled: true
+  on_block: "escalate"
+  extra_blocklist: []
+
+# --- Tempo und Limits -------------------------------------------------------
+# Im autonomen Betrieb wichtiger als sonst: hier schaut niemand mehr drueber,
+# bevor gesendet wird.
+schedule:
+  inbox_poll_min: 180
+  inbox_poll_max: 600
+  quiet_hours:
+    enabled: true
+    start: "23:30"
+    end: "07:30"
+  limits:
+    replies_per_hour: 10
+    replies_per_day: 50
+    ads_per_day: 5
+    min_seconds_between_replies: 60
+
+# --- Rest identisch zu config.example.yaml ----------------------------------
+browser:
+  profile_dir: "profiles/default"
+  headless: false
+  locale: "de-DE"
+  timezone: "Europe/Berlin"
+  viewport: { width: 1536, height: 864 }
+  use_proxy: false
+  nav_timeout: 45
+
+humanize:
+  typing_cpm_min: 190
+  typing_cpm_max: 340
+  pause_before_submit: [1.5, 4.5]
+  action_delay: [0.8, 3.0]
+  reading_speed: [1.2, 2.6]
+  random_scroll: true
+
+ai:
+  backend: "llama_cpp"
+  llama_cpp:
+    repo_id: "bartowski/Qwen2.5-7B-Instruct-GGUF"
+    filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+    context_size: 4096
+    threads: 0
+    gpu_layers: 0
+  generation:
+    max_new_tokens: 220
+    temperature: 0.7
+    top_p: 0.9
+
+ads:
+  auto_renew: false
+  auto_renew_after_days: 7
+  template_dir: "ads"
+
+ui:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8765
+
+telegram:
+  enabled: true
+  # Im autonomen Betrieb empfehlenswert: du siehst dann mit, was in deinem
+  # Namen rausgeht, auch ohne etwas freigeben zu muessen.
+  notify_new_message: true
+  notify_errors: true
+
+logging:
+  level: "INFO"
+  file: "logs/assistant.log"
+  log_message_bodies: false
