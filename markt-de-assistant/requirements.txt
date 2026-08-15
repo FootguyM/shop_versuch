@@ -1,0 +1,23 @@
+# --- Kern ------------------------------------------------------------------
+playwright==1.49.1
+PyYAML==6.0.2
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# --- Telegram --------------------------------------------------------------
+python-telegram-bot==21.9
+
+# --- Web-UI ----------------------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+itsdangerous==2.2.0
+
+# --- KI: Standard-Backend (laeuft lokal, kein API-Token noetig) ------------
+# Laedt oeffentliche GGUF-Modelle direkt von huggingface.co
+huggingface-hub==0.27.1
+llama-cpp-python==0.3.5
+
+# --- KI: optionales Backend (nur PC/GPU, gross) ----------------------------
+# transformers==4.48.0
+# torch==2.5.1

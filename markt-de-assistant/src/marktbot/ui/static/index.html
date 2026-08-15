@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>markt.de Assistent</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🤖</text></svg>">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<div id="login" class="login hidden">
+  <form class="login-box" onsubmit="doLogin(event)">
+    <h1>markt.de Assistent</h1>
+    <p class="muted">Dieses Dashboard ist mit einem Passwort geschützt.</p>
+    <input type="password" id="pw" placeholder="Passwort" autocomplete="current-password" required>
+    <button type="submit">Anmelden</button>
+    <p id="login-error" class="error"></p>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+
+  <header>
+    <div class="brand">
+      <span class="logo">🤖</span>
+      <div>
+        <h1>markt.de Assistent</h1>
+        <p class="muted" id="mode-line">–</p>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="btn-poll" class="btn" onclick="control('poll')">Jetzt prüfen</button>
+      <button id="btn-pause" class="btn" onclick="togglePause()">Pause</button>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="drafts">Entwürfe <span class="badge" id="badge-drafts">0</span></button>
+    <button class="tab" data-tab="inbox">Postfach</button>
+    <button class="tab" data-tab="ads">Anzeigen</button>
+    <button class="tab" data-tab="log">Protokoll</button>
+  </nav>
+
+  <!-- ENTWÜRFE -->
+  <section class="panel active" id="tab-drafts">
+    <div id="drafts-list"></div>
+  </section>
+
+  <!-- POSTFACH -->
+  <section class="panel" id="tab-inbox">
+    <div class="split">
+      <div class="list" id="threads-list"></div>
+      <div class="detail" id="thread-detail">
+        <p class="muted center">Konversation links auswählen.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ANZEIGEN -->
+  <section class="panel" id="tab-ads">
+    <div class="row-between">
+      <h2>Deine Anzeigen</h2>
+      <button class="btn" onclick="loadAds(true)">Von markt.de neu laden</button>
+    </div>
+    <div id="ads-list"></div>
+
+    <h2 class="mt">Neue Anzeige aus Vorlage</h2>
+    <div id="templates-list"></div>
+  </section>
+
+  <!-- PROTOKOLL -->
+  <section class="panel" id="tab-log">
+    <div class="row-between">
+      <h2>Letzte Aktionen</h2>
+      <button class="btn" onclick="loadLog()">Aktualisieren</button>
+    </div>
+    <table class="log"><tbody id="log-body"></tbody></table>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

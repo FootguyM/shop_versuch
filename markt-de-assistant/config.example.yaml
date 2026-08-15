@@ -1,0 +1,180 @@
+# ===========================================================================
+#  markt-de-assistant - Konfiguration
+#  Kopieren nach "config.yaml" und anpassen. Zugangsdaten gehoeren in .env,
+#  nicht hierher.
+# ===========================================================================
+
+# --- Identitaet der Browser-Sitzung ----------------------------------------
+browser:
+  # Verzeichnis fuer das persistente Chromium-Profil. Cookies, LocalStorage
+  # und der Login ueberleben damit Neustarts - genau wie bei einem echten
+  # Nutzer, der seinen Browser zumacht und wieder aufmacht.
+  profile_dir: "profiles/default"
+
+  # false = sichtbares Fenster (Windows-Test, Erst-Login, Captcha loesen)
+  # true  = ohne Fenster (Raspberry Pi Dauerbetrieb)
+  headless: false
+
+  # Deutsche Umgebung. Wird 1:1 an Chromium durchgereicht.
+  locale: "de-DE"
+  timezone: "Europe/Berlin"
+  # Aufloesung eines gewoehnlichen Notebooks.
+  viewport: { width: 1536, height: 864 }
+
+  # Proxy. Leer lassen, wenn der Rechner selbst am Privatanschluss haengt.
+  # Werte kommen aus .env (PROXY_SERVER / PROXY_USERNAME / PROXY_PASSWORD).
+  use_proxy: false
+
+  # Sekunden, die auf das Laden einer Seite gewartet wird.
+  nav_timeout: 45
+
+# --- Menschliches Verhalten -------------------------------------------------
+# Der Bot arbeitet bewusst langsam und unregelmaessig. Das schont den Server
+# der Gegenseite und vermeidet das Muster "alle 60 s exakt ein Request".
+humanize:
+  # Tippgeschwindigkeit in Zeichen pro Minute (wird zufaellig variiert).
+  typing_cpm_min: 190
+  typing_cpm_max: 340
+  # Pause vor dem Absenden eines Formulars (Sekunden).
+  pause_before_submit: [1.5, 4.5]
+  # Allgemeine Denkpause zwischen zwei Aktionen (Sekunden).
+  action_delay: [0.8, 3.0]
+  # Vor dem Antworten erst die Nachricht "lesen" (Sekunden pro 100 Zeichen).
+  reading_speed: [1.2, 2.6]
+  # Zufaelliges Scrollen auf Listenseiten.
+  random_scroll: true
+
+# --- Abrufrhythmus ----------------------------------------------------------
+schedule:
+  # Postfach-Abruf: zufaelliges Intervall zwischen min und max (Sekunden).
+  inbox_poll_min: 240
+  inbox_poll_max: 900
+
+  # Ruhezeiten - in diesem Fenster wird nichts gesendet und nicht gepollt.
+  # Format "HH:MM". Nachts um 4 Uhr Anzeigen zu schalten faellt auf.
+  quiet_hours:
+    enabled: true
+    start: "23:30"
+    end: "07:30"
+
+  # Harte Obergrenzen. Werden sie erreicht, pausiert der Bot bis zum
+  # naechsten Zeitfenster und meldet das per Telegram.
+  limits:
+    replies_per_hour: 8
+    replies_per_day: 40
+    ads_per_day: 5
+    # Mindestabstand zwischen zwei gesendeten Nachrichten (Sekunden).
+    min_seconds_between_replies: 90
+
+# --- KI ---------------------------------------------------------------------
+ai:
+  # Backends:
+  #   llama_cpp    - laedt ein oeffentliches GGUF von Hugging Face und rechnet
+  #                  lokal auf der CPU. KEIN API-Token noetig. (Standard)
+  #   transformers - lokal via transformers/torch. Nur PC mit viel RAM/GPU.
+  #   hf_inference - Hugging Face Inference API. Braucht HUGGINGFACE_TOKEN.
+  #   template     - keine KI, nur Textbausteine. Zum Testen der Mechanik.
+  backend: "llama_cpp"
+
+  llama_cpp:
+    # Windows-PC (8 GB+ RAM): 7B-Modell mit gutem Deutsch.
+    repo_id: "bartowski/Qwen2.5-7B-Instruct-GGUF"
+    filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+    # Raspberry Pi 5 (8 GB): kleineres Modell nehmen, siehe README.
+    #   repo_id:  "bartowski/Qwen2.5-3B-Instruct-GGUF"
+    #   filename: "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+    context_size: 4096
+    threads: 0          # 0 = automatisch
+    gpu_layers: 0       # >0 nur mit CUDA/Metal-Build von llama-cpp-python
+
+  transformers:
+    model_id: "Qwen/Qwen2.5-7B-Instruct"
+    device: "auto"
+
+  hf_inference:
+    model_id: "Qwen/Qwen2.5-7B-Instruct"
+
+  generation:
+    max_new_tokens: 220
+    temperature: 0.75
+    top_p: 0.9
+
+# --- Persona: wie der Bot klingt -------------------------------------------
+persona:
+  # Name, unter dem inseriert wird.
+  display_name: "Alex"
+  # Freitext. Das ist die wichtigste Stellschraube fuer den Tonfall.
+  description: >
+    Locker, freundlich, kurz angebunden. Schreibt wie in einer normalen
+    Chat-App: kleine Saetze, gelegentlich Tippfehler-freies aber lockeres
+    Deutsch, kein Marketing-Sprech, keine Emojis-Flut.
+  # Feste Regeln, die immer im Prompt landen.
+  rules:
+    - "Antworte auf Deutsch, per Du."
+    - "Maximal 3 kurze Saetze."
+    - "Keine Preise, Adressen, Telefonnummern oder Kontodaten nennen."
+    - "Keine Termine verbindlich zusagen - nur Interesse signalisieren."
+    - "Bei konkreten Absprachen auf ein persoenliches Gespraech verweisen."
+  # Fragen, bei denen die KI grundsaetzlich an den Menschen uebergibt.
+  handover_topics:
+    - "Preisverhandlung"
+    - "Adresse oder Anfahrt"
+    - "Bezahlung, Anzahlung, Gutscheine"
+    - "Verifizierung, Ausweis, Fotos auf Anfrage"
+
+# --- Antwort-Freigabe -------------------------------------------------------
+replies:
+  # true  = jeder Entwurf muss von dir per Telegram/UI freigegeben werden.
+  # false = Vollautomatik. Bewusste Entscheidung, siehe README.
+  require_approval: true
+
+  # Wird an jede automatisch erzeugte Antwort angehaengt. Leerer String
+  # schaltet den Hinweis ab.
+  disclosure: ""
+
+  # Erste Nachricht eines neuen Kontakts nie automatisch beantworten,
+  # sondern immer vorlegen - auch wenn require_approval aus ist.
+  always_approve_first_contact: true
+
+  # Entwuerfe, die aelter als X Stunden sind, werden verworfen.
+  draft_ttl_hours: 12
+
+# --- Sicherheitsfilter ------------------------------------------------------
+# Greift VOR der KI. Trifft ein Muster zu, wird kein Entwurf erzeugt,
+# sondern der Thread markiert und per Telegram eskaliert.
+safety:
+  enabled: true
+  # Bei Treffer: "escalate" (an dich melden) oder "ignore" (still ablegen).
+  on_block: "escalate"
+  # Zusaetzlich zu den eingebauten Mustern (siehe ai/safety.py).
+  extra_blocklist: []
+
+# --- Anzeigenverwaltung -----------------------------------------------------
+ads:
+  # Anzeigen automatisch erneuern, sobald sie aelter als X Tage sind.
+  auto_renew: false
+  auto_renew_after_days: 7
+  # Vorlagen liegen in ads/*.yaml (siehe ads/beispiel.yaml).
+  template_dir: "ads"
+
+# --- Web-UI -----------------------------------------------------------------
+ui:
+  enabled: true
+  host: "127.0.0.1"
+  port: 8765
+  # Nur auf 0.0.0.0 stellen, wenn UI_PASSWORD gesetzt ist.
+
+# --- Telegram ---------------------------------------------------------------
+telegram:
+  enabled: true
+  # Push bei neuer Nachricht im Postfach.
+  notify_new_message: true
+  # Push bei Fehlern/Login-Problemen.
+  notify_errors: true
+
+# --- Logging ----------------------------------------------------------------
+logging:
+  level: "INFO"          # DEBUG fuer Fehlersuche
+  file: "logs/marktbot.log"
+  # Nachrichteninhalte im Log? Standardmaessig aus (Datenschutz).
+  log_message_bodies: false

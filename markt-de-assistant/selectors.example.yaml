@@ -1,0 +1,40 @@
+# ===========================================================================
+#  Selektor-Overrides
+#
+#  Kopieren nach "selectors.yaml", sobald der Bot ein Element nicht mehr
+#  findet. Was hier steht, wird VOR den eingebauten Kandidaten probiert; die
+#  Defaults bleiben als Auffangnetz bestehen.
+#
+#  Den passenden Selektor findest du so:
+#    1. Seite in Chrome oeffnen, Rechtsklick auf das Element -> Untersuchen
+#    2. Im DevTools-Baum Rechtsklick -> Copy -> Copy selector
+#    3. Hier mit dem Praefix "css=" eintragen
+#
+#  Praefixe:
+#    css=...   CSS-Selektor
+#    text=...  Textinhalt, /.../i fuer Regex ohne Gross-Kleinschreibung
+#    role=...  ARIA-Rolle, z. B. role=button[name=/senden/i]
+#
+#  Pruefen mit:  python run.py doctor https://www.markt.de/postfach/
+# ===========================================================================
+
+# reply_input:
+#   - "css=textarea.message-composer__input"
+
+# reply_submit:
+#   - "css=button.message-composer__send"
+
+# inbox_thread_item:
+#   - "css=li.conversation-list__item"
+
+# thread_message_item:
+#   - "css=div.message-bubble"
+
+# thread_message_own_marker:
+#   - "css=.message-bubble--own"
+
+# ads_list_item:
+#   - "css=article.my-ad-card"
+
+# ad_renew_button:
+#   - "role=button[name=/hochschieben/i]"

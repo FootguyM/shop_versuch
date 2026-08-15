@@ -1,0 +1,26 @@
+[project]
+name = "markt-de-assistant"
+version = "0.1.0"
+description = "Automatisierungs-Assistent fuer markt.de: Anzeigenverwaltung, KI-gestuetzte Postfach-Antworten, Telegram-Steuerung, lokales Web-UI"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",    # Zeilenlaenge wird von line-length geregelt
+    "B008",    # FastAPI-Depends im Default ist dort idiomatisch
+    "SIM105",  # contextlib.suppress ist nicht immer lesbarer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["SLF001"]

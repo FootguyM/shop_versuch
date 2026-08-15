@@ -1,0 +1,45 @@
+# systemd-Unit fuer den Dauerbetrieb auf dem Raspberry Pi.
+#
+#   sudo cp deploy/marktbot.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/marktbot.service    # Pfade und Benutzer pruefen
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now marktbot
+#   journalctl -u marktbot -f
+
+[Unit]
+Description=markt.de Assistent
+Documentation=https://github.com/FootguyM/markt-de-assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/markt-de-assistant
+
+# "headless" laesst das Web-UI weg. Wer es auch auf dem Pi will, nimmt "run"
+# und setzt ui.host auf 0.0.0.0 - dann ist UI_PASSWORD Pflicht.
+ExecStart=/home/pi/markt-de-assistant/.venv/bin/python run.py headless
+
+Restart=on-failure
+RestartSec=30
+# Nach fuenf Fehlstarts in 10 Minuten aufgeben, statt endlos zu kreiseln.
+StartLimitBurst=5
+StartLimitIntervalSec=600
+
+# Chromium braucht Platz in /dev/shm, sonst stuerzt der Renderer ab.
+PrivateTmp=false
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=marktbot
+
+# --- Absicherung ---
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=false
+PrivateDevices=false
+
+[Install]
+WantedBy=multi-user.target

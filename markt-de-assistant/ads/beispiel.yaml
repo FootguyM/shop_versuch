@@ -1,0 +1,32 @@
+# Anzeigenvorlage.
+#
+# Jede *.yaml in diesem Ordner ist eine Vorlage. Der Dateiname ohne Endung ist
+# der Name, den du in Telegram (/neu beispiel) oder im Web-UI benutzt.
+#
+# Pflichtfelder: title, description
+# Alles andere ist optional und wird nur ausgefuellt, wenn das Formular ein
+# passendes Feld hat.
+
+title: "Beispieltitel der Anzeige"
+
+description: |
+  Hier steht der Anzeigentext. Mehrere Zeilen sind kein Problem,
+  Zeilenumbrueche bleiben erhalten.
+
+  Der Bot tippt den Text zeichenweise ins Formular, das dauert bei langen
+  Texten entsprechend - das ist Absicht.
+
+# Freitext. Muss zur Kategoriewahl auf markt.de passen.
+category: ""
+
+# Als String, damit "VB", "Verhandlungsbasis" oder "auf Anfrage" moeglich sind.
+price: ""
+
+location: "Berlin"
+postal_code: "10115"
+
+# Pfade relativ zum Projektverzeichnis oder absolut.
+# Die Dateien muessen existieren, sonst werden sie uebersprungen.
+images: []
+  # - "bilder/foto1.jpg"
+  # - "bilder/foto2.jpg"

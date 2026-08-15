@@ -1,0 +1,40 @@
+# Secrets & lokale Konfiguration
+.env
+config.yaml
+*.session
+
+# Browser-Profil (enthaelt Login-Cookies!)
+profiles/
+browser_profile/
+
+# Daten & Logs
+data/
+logs/
+*.db
+*.db-journal
+*.db-wal
+screenshots/
+
+# KI-Modelle
+models/
+*.gguf
+*.safetensors
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
