@@ -18,6 +18,7 @@ API-Token** gebraucht.
 - [Wie die KI-Antworten funktionieren](#wie-die-ki-antworten-funktionieren)
 - [Assistenzmodus: autonom und offen als KI](#assistenzmodus-autonom-und-offen-als-ki)
 - [Schnellstart Windows](#schnellstart-windows)
+- [Die Oberfläche](#die-oberfläche)
 - [Schnellstart Raspberry Pi](#schnellstart-raspberry-pi)
 - [Konfiguration](#konfiguration)
 - [Modellwahl](#modellwahl)
@@ -62,6 +63,7 @@ Web-UI. Der Unterschied liegt allein im Antwortverhalten.
 | **Sicherheit** | Filter stoppt Themen, die kein Automat beantworten darf, und eskaliert an dich |
 | **Limits** | Obergrenzen pro Stunde und Tag, Mindestabstand zwischen Nachrichten, Ruhezeiten |
 | **Anmeldung** | Persistentes Browser-Profil; Captcha und 2FA gehen per Screenshot an dich |
+| **Oberfläche** | Desktop-Fenster für Einrichtung, Start/Stopp und Live-Protokoll |
 
 ---
 
@@ -200,8 +202,23 @@ python run.py -c config.assistant.yaml ai-test "Was kostet das denn?"
 
 ## Schnellstart Windows
 
-Voraussetzung: [Python 3.11+](https://www.python.org/downloads/) mit angekreuztem
-*Add Python to PATH*.
+Voraussetzung: [Python 3.11+](https://www.python.org/downloads/). Beim
+Installieren zwei Häkchen setzen: **Add python.exe to PATH** und **tcl/tk and
+IDLE** (Letzteres liefert die Oberfläche — ohne das startet nur die
+Kommandozeilenversion).
+
+Dann **`AUF-DESKTOP-INSTALLIEREN.bat` doppelklicken.** Das Skript legt den
+Ordner `markt-de-assistant` auf dem Desktop an, richtet die Python-Umgebung ein,
+installiert Pakete und Chromium, erstellt `config.yaml` und `.env` aus den
+Vorlagen und legt eine Desktop-Verknüpfung an. Danach öffnet sich die
+Oberfläche.
+
+Ein zweiter Lauf aktualisiert nur die Programmdateien — `config.yaml`, `.env`,
+das Browser-Profil und die Datenbank bleiben unangetastet.
+
+### Von Hand
+
+Wer lieber selbst einrichtet:
 
 ```powershell
 git clone https://github.com/FootguyM/markt-de-assistant.git
@@ -248,6 +265,44 @@ wird ab da wiederverwendet:
 ```
 
 Web-UI: <http://127.0.0.1:8765>
+
+---
+
+## Die Oberfläche
+
+Doppelklick auf die Desktop-Verknüpfung, oder im Ordner:
+
+```bash
+python gui.py
+```
+
+Ein Fenster mit drei Reitern, das ohne installierte Pakete startet — Tkinter
+liegt jeder Python-Installation bei. Das ist Absicht: die Einrichtung soll aus
+der Oberfläche heraus laufen können, nicht erst danach zur Verfügung stehen.
+
+**Übersicht** — Systemcheck (Pakete, Browser, Konfiguration, Anmeldung),
+Auswahl der Betriebsart, Trockenlauf-Schalter, Start/Stopp und ein Knopf zum
+Web-Dashboard.
+
+**Einrichtung** — Felder für markt.de-Zugang, Telegram und Proxy; Speichern
+schreibt nach `.env`, ohne die Kommentare der Vorlage zu zerstören. Darunter die
+Einrichtungsschritte als Knöpfe: Pakete installieren, Browser installieren, bei
+markt.de anmelden, Selektoren prüfen, KI testen.
+
+**Protokoll** — die Ausgabe des Bots in Echtzeit, farblich nach Fehlern,
+Warnungen und Erfolgen sortiert.
+
+Der Bot läuft dabei als eigener Prozess. Das kostet etwas Umstand bei der
+Ausgabe, hat aber zwei Vorteile: ein Absturz des Bots nimmt die Oberfläche nicht
+mit, und „Stoppen" ist ein sauberes Prozessende statt eines halb abgeräumten
+Event-Loops.
+
+Die eigentliche Arbeit — Entwürfe lesen und freigeben, Verläufe ansehen,
+Anzeigen verwalten — passiert weiterhin im Web-Dashboard oder in Telegram. Das
+Fenster ist Schaltzentrale und Einrichtung.
+
+> Auf dem Raspberry Pi im Dauerbetrieb wird die Oberfläche nicht gebraucht —
+> dort läuft `run.py headless` als systemd-Dienst, gesteuert über Telegram.
 
 ---
 
@@ -661,6 +716,8 @@ safety:
 ## Architektur
 
 ```
+AUF-DESKTOP-INSTALLIEREN.bat   Windows: legt alles auf dem Desktop an
+gui.py                    Desktop-Oberfläche (Tkinter, ohne Zusatzpakete)
 run.py                    CLI: run · assistant · ui · headless · login · doctor · check · ads · ai-test
 └── marktbot/
     ├── app.py            Orchestrator + Telegram + Web-UI in einem Event-Loop
@@ -686,7 +743,10 @@ run.py                    CLI: run · assistant · ui · headless · login · do
     │   ├── ratelimit.py    Limits und Ruhezeiten (persistent über Neustarts)
     │   └── notifier.py     Benachrichtigungskanäle
     ├── telegrambot/bot.py  Fernsteuerung
-    └── ui/                 FastAPI + Dashboard
+    └── ui/
+        ├── server.py       FastAPI + Web-Dashboard
+        ├── desktop.py      Desktop-Fenster
+        └── envfile.py      .env lesen/schreiben ohne Kommentarverlust
 ```
 
 Alle Browser-Zugriffe laufen über einen gemeinsamen Lock, damit sich
@@ -714,6 +774,8 @@ pytest -q
 | Modell lädt nicht | Plattenplatz prüfen; auf dem Pi kleineres Modell eintragen |
 | `llama-cpp-python` baut nicht | Swap zu klein → `scripts/setup_pi.sh` erhöht ihn auf 2 GB |
 | Bot antwortet nicht in Telegram | Chat-ID in `.env` prüfen; nur die eingetragene ID darf steuern |
+| `gui.py` startet nicht | Tkinter fehlt → Python neu installieren mit „tcl/tk and IDLE", auf Linux `sudo apt install python3-tk` |
+| Installer findet kein Python | Beim Installieren „Add python.exe to PATH" nicht angekreuzt → Python neu installieren |
 | `assistant.identification ist leer` | Assistenzmodus braucht die Kennzeichnung – ohne sie kein autonomer Betrieb |
 | Assistent stellt sich zu oft vor | `identify_on_first_reply` gilt pro Konversation; bei jedem Erstkontakt ist das gewollt |
 | „Nicht gesendet: Ruhezeit“ | `schedule.quiet_hours` in `config.yaml` |
