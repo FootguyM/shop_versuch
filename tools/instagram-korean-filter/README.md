@@ -10,6 +10,17 @@ verändert nichts an ihm.
 
 ---
 
+## Lieber per Telegram vom Handy?
+
+Es gibt zusätzlich einen Telegram-Bot, der kostenlos bei GitHub läuft, die
+Followerliste in Etappen abarbeitet und dir die Treffer laufend schickt.
+Einrichtung und Bedienung: **[BOT.md](BOT.md)**.
+
+Der Rest dieser Seite beschreibt das Kommandozeilen-Werkzeug für den eigenen
+Rechner.
+
+---
+
 ## Schnellstart
 
 ```bash

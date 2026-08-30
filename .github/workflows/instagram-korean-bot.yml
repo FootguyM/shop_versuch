@@ -1,0 +1,84 @@
+# Telegram-Bot, der die Followerliste eines Instagram-Accounts etappenweise
+# nach koreanischen Zeichen im Profilnamen durchsucht.
+#
+# Laeuft komplett bei GitHub -- unabhaengig vom Shop, ohne eigenen Rechner.
+# Jeder Durchlauf holt die Telegram-Befehle ab, arbeitet ein Stueck der Liste
+# ab, schickt die neuen Treffer und legt den Zwischenstand im Zweig
+# "bot-state" ab. Der naechste Durchlauf macht genau dort weiter.
+#
+# Einrichtung: siehe tools/instagram-korean-filter/BOT.md
+
+name: Instagram-Korea-Bot
+
+on:
+  schedule:
+    # alle 15 Minuten; GitHub startet geplante Laeufe manchmal etwas spaeter.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      account:
+        description: 'Instagram-Account, dessen Follower geprueft werden sollen (leer = nur weiterarbeiten)'
+        required: false
+        default: ''
+
+# Nie zwei Etappen gleichzeitig -- sonst ueberschreiben sie sich den Zwischenstand.
+concurrency:
+  group: instagram-korean-bot
+  cancel-in-progress: false
+
+jobs:
+  etappe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # nur, um den Zwischenstand im Zweig bot-state zu speichern
+
+    steps:
+      - name: Code holen
+        uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Zwischenstand laden
+        run: |
+          mkdir -p .botstate
+          if git fetch --depth=1 origin bot-state 2>/dev/null \
+             && git show FETCH_HEAD:state.json > .botstate/state.json 2>/dev/null; then
+            echo "Zwischenstand aus dem Zweig bot-state geladen."
+          else
+            echo '{}' > .botstate/state.json
+            echo "Kein Zwischenstand gefunden -- fange bei null an."
+          fi
+
+      - name: Etappe abarbeiten
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_ALLOWED_USERNAME: ${{ vars.TELEGRAM_ALLOWED_USERNAME || 'vvalora' }}
+          IG_SESSIONID: ${{ secrets.IG_SESSIONID }}
+          BOT_STATE_FILE: .botstate/state.json
+          # Wie lange eine Etappe hoechstens arbeitet (der Lauf selbst darf 15 Min).
+          BOT_RUN_BUDGET_SECONDS: '600'
+          # Bewusst gemuetlich: gut 12 Sekunden Pause zwischen den Abrufen
+          # (leicht gestreut). Ergibt rund 2500 gepruefte Profile pro Etappe.
+          BOT_DELAY_MS: '12000'
+          BOT_PAGE_SIZE: '50'
+          # Nach so vielen geprueften Profilen kommt eine Zwischenmeldung.
+          BOT_STAGE_SIZE: '500'
+          BOT_START_SCAN: ${{ github.event.inputs.account }}
+        run: node tools/instagram-korean-filter/bot.mjs
+
+      - name: Zwischenstand sichern
+        if: always()
+        run: |
+          git config user.name 'instagram-korean-bot'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Der Zweig bot-state traegt nur diese eine Datei und keine Historie.
+          BLOB=$(git hash-object -w .botstate/state.json)
+          TREE=$(printf '100644 blob %s\tstate.json\n' "$BLOB" | git mktree)
+          COMMIT=$(git commit-tree "$TREE" -m "Bot-Zwischenstand $(date -u +%Y-%m-%dT%H:%M:%SZ)")
+          git push --force origin "$COMMIT:refs/heads/bot-state"
+          echo "Zwischenstand gespeichert."

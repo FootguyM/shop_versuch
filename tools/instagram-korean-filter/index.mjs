@@ -11,6 +11,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { inspectFields } from './korean.mjs';
+import { toCsv } from './format.mjs';
 import { createClient, InstagramError } from './instagram.mjs';
 import { readExport } from './sources.mjs';
 
@@ -104,19 +105,10 @@ function formatFuer(opts) {
   return endung === 'json' || endung === 'txt' ? endung : 'csv';
 }
 
-function csvFeld(wert) {
-  const text = String(wert ?? '');
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
 function serialisieren(treffer, format) {
   if (format === 'json') return `${JSON.stringify(treffer, null, 2)}\n`;
   if (format === 'txt') return treffer.map((t) => t.username).join('\n') + (treffer.length ? '\n' : '');
-  const kopf = ['username', 'full_name', 'korean_chars', 'matched_fields', 'profile_url'];
-  const zeilen = treffer.map((t) =>
-    [t.username, t.full_name, t.korean_chars, t.matched_fields, t.profile_url].map(csvFeld).join(','),
-  );
-  return [kopf.join(','), ...zeilen].join('\n') + '\n';
+  return toCsv(treffer, ['username', 'full_name', 'korean_chars', 'matched_fields', 'profile_url']);
 }
 
 async function main() {

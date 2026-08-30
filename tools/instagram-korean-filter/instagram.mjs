@@ -133,6 +133,39 @@ export function createClient(sessionId, { delay = 1500, onNotice = () => {} } = 
     };
   }
 
+  /** Vereinheitlicht einen Follower-Eintrag aus der Antwort. */
+  function toUser(user) {
+    return {
+      id: user.pk ?? user.id ?? '',
+      username: user.username ?? '',
+      full_name: user.full_name ?? '',
+      is_private: Boolean(user.is_private),
+      is_verified: Boolean(user.is_verified),
+    };
+  }
+
+  /**
+   * Holt genau eine Seite der Followerliste. Der zurueckgegebene Cursor kann
+   * gespeichert werden, um spaeter genau dort weiterzumachen -- das ist die
+   * Grundlage fuer das etappenweise Arbeiten des Telegram-Bots.
+   *
+   * @param {string} userId numerische Account-ID
+   * @param {{ cursor?: string|null, pageSize?: number }} opts
+   * @returns {Promise<{ users: Array<object>, nextCursor: string|null }>}
+   */
+  async function fetchFollowerPage(userId, { cursor = null, pageSize = 50 } = {}) {
+    const params = new URLSearchParams({
+      count: String(pageSize),
+      search_surface: 'follow_list_page',
+    });
+    if (cursor) params.set('max_id', String(cursor));
+
+    const data = await getJson(`${BASE}/api/v1/friendships/${userId}/followers/?${params}`);
+    const users = Array.isArray(data?.users) ? data.users.map(toUser) : [];
+    const nextCursor = data?.next_max_id != null ? String(data.next_max_id) : null;
+    return { users, nextCursor };
+  }
+
   /**
    * Laeuft die Followerliste seitenweise durch und liefert einzelne Accounts.
    *
@@ -145,35 +178,22 @@ export function createClient(sessionId, { delay = 1500, onNotice = () => {} } = 
     let page = 0;
 
     while (true) {
-      const params = new URLSearchParams({
-        count: String(pageSize),
-        search_surface: 'follow_list_page',
-      });
-      if (cursor) params.set('max_id', String(cursor));
-
-      const data = await getJson(`${BASE}/api/v1/friendships/${userId}/followers/?${params}`);
-      const users = Array.isArray(data?.users) ? data.users : [];
+      const { users, nextCursor } = await fetchFollowerPage(userId, { cursor, pageSize });
       page += 1;
 
       for (const user of users) {
-        yield {
-          id: user.pk ?? user.id ?? '',
-          username: user.username ?? '',
-          full_name: user.full_name ?? '',
-          is_private: Boolean(user.is_private),
-          is_verified: Boolean(user.is_verified),
-        };
+        yield user;
         seen += 1;
         if (limit !== null && seen >= limit) return;
       }
 
       if (onPage) onPage(page, seen);
 
-      cursor = data?.next_max_id ?? null;
+      cursor = nextCursor;
       if (!cursor || users.length === 0) return;
       await sleep(delay);
     }
   }
 
-  return { fetchProfile, iterateFollowers };
+  return { fetchProfile, fetchFollowerPage, iterateFollowers };
 }

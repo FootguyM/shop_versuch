@@ -6,3 +6,6 @@ out
 .vercel
 *.log
 .DS_Store
+
+# Zwischenstand des Telegram-Bots (wird von der GitHub-Action verwaltet)
+.botstate/
