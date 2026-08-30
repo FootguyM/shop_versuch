@@ -5,9 +5,12 @@ Profil den **Profilnamen** auf koreanische Zeichen und schickt dir die Treffer
 per Telegram — Etappe für Etappe, am Ende noch einmal als komplette Liste plus
 CSV-Datei.
 
-Er läuft **kostenlos bei GitHub** (GitHub Actions), nicht auf deinem Rechner und
-nicht über den Shop. Du brauchst dafür nur dein Handy: Telegram öffnen,
-`/scan accountname` schreiben, warten.
+Er läuft bei **GitHub Actions** — nicht auf deinem Rechner und nicht über den
+Shop. Du brauchst dafür nur dein Handy: Telegram öffnen, `/scan accountname`
+schreiben, warten. Die Followerliste holt er voreingestellt über einen fertigen
+Scraper bei **Apify**, du brauchst also kein eigenes Instagram-Konto — dafür
+kostet dort jedes Ergebnis ein paar Zehntelcent (Schritt 2). Wahlweise geht es
+auch über ein eigenes Instagram-Cookie, dann kostenlos.
 
 ---
 
@@ -27,14 +30,16 @@ nicht über den Shop. Du brauchst dafür nur dein Handy: Telegram öffnen,
    Wenn du das Repository öffentlich lässt, sind die Minuten unbegrenzt — dann
    in `.github/workflows/instagram-korean-bot.yml` ruhig `- cron: '7 * * * *'`
    auf `'*/15 * * * *'` ändern, dann reagiert er viertelstündlich.
-2. **Instagram mag automatische Abfragen nicht**, und Anfragen aus einem
-   Rechenzentrum (wie bei GitHub) fallen stärker auf als von zu Hause. Der Bot
-   arbeitet deshalb betont langsam. Trotzdem kann es passieren, dass Instagram
-   bremst oder dein Login einen Sicherheits-Check verlangt. Nimm dafür besser
-   nicht deinen wichtigsten Account.
-3. **Das Instagram-Cookie läuft irgendwann ab.** Dann meldet sich der Bot bei
-   dir und du hinterlegst ein neues (Schritt 3 unten). Dein Fortschritt bleibt
-   dabei erhalten.
+2. **Voreingestellt läuft es über Apify** — einen fertigen Scraper-Dienst. Du
+   brauchst dann kein eigenes Instagram-Konto, zahlst aber pro Ergebnis
+   (Größenordnung 2,50 $ je 1000 Follower, siehe Schritt 2). Der Bot nennt dir
+   vor jedem Scan die geschätzten Kosten und begrenzt sich ohne ausdrückliche
+   Zahl auf 1000 Follower.
+3. **Der Weg über ein eigenes Instagram-Konto** ist kostenlos, dafür kann
+   Instagram bremsen oder einen Sicherheits-Check verlangen — Anfragen aus
+   einem Rechenzentrum fallen stärker auf als von zu Hause. Nimm dafür nicht
+   deinen wichtigsten Account. Läuft das Cookie ab, meldet sich der Bot; dein
+   Fortschritt bleibt erhalten.
 
 ---
 
@@ -46,31 +51,59 @@ In Telegram **@BotFather** anschreiben → `/newbot` → Namen und Benutzernamen
 vergeben. Am Ende bekommst du ein Token der Form
 `123456789:AAH...`. Das ist dein `TELEGRAM_BOT_TOKEN`.
 
-### 2. Instagram-Konto wählen und Cookie auslesen
+### 2. Quelle wählen
 
-Der Bot braucht ein eingeloggtes Instagram-Konto, weil Followerlisten ohne
-Login nicht abrufbar sind. Nimm dafür besser **nicht** deinen Hauptaccount.
+Followerlisten gibt Instagram nur an eingeloggte Besucher heraus. Es gibt
+deshalb zwei Wege — der Bot kann beide.
 
-Falls du ein neues anlegst (instagram.com → Registrieren, dauert zwei Minuten):
-Ein frisch erstelltes Konto fällt Instagram besonders schnell auf, wenn es
-sofort tausende Profile abruft — lass es ein paar Tage normal stehen, folge
-ein paar Accounts, und starte erst dann mit einem kleinen `/scan name 200`.
-Und: Ein neues Konto sieht die Followerliste eines **privaten** Profils erst,
-wenn es ihm folgt und die Anfrage angenommen wurde.
+**Voreingestellt: Apify (kein eigener Instagram-Login).** Bei
+[apify.com](https://apify.com) anmelden, dann **Settings → Integrations → API
+token** kopieren. Der Bot startet dort einen fertigen Scraper, wartet, bis
+Ergebnisse eintrudeln, und liest sie ein. Um den Instagram-Login kümmert sich
+der Anbieter.
 
-**Cookie auslesen:** Am Computer mit diesem Konto bei instagram.com einloggen → F12 → Tab **Application**
-(Firefox: **Speicher**) → **Cookies** → `https://www.instagram.com` → den Wert
-von **`sessionid`** kopieren. Das ist dein `IG_SESSIONID`.
+Was du dazu wissen musst:
 
-### 3. Beides bei GitHub hinterlegen
+* **Es kostet pro Ergebnis.** Voreingestellt ist der Actor
+  `scraping_solutions/instagram-scraper-followers-following-no-cookies` für
+  rund **2,50 $ pro 1000 Ergebnisse**. Apifys Gratis-Rahmen sind 5 $ Guthaben
+  im Monat, also etwa 2000 Follower. Eine Liste mit 50.000 Followern kostet
+  entsprechend rund 125 $. Der Bot nennt dir beim Start die geschätzten Kosten.
+* **Deshalb bekommt jeder Scan eine Obergrenze.** Ohne ausdrückliche Zahl im
+  Befehl nimmt der Bot 1000 (`APIFY_DEFAULT_LIMIT`). `/scan name 5000` hebt sie
+  für diesen Scan an.
+* **Anderen Actor nehmen:** Variable `APIFY_ACTOR` setzen, bei abweichenden
+  Eingabefeldern zusätzlich `APIFY_INPUT` (JSON mit den Platzhaltern
+  `{{username}}` und `{{limit}}`). Die Ausgabefelder erkennt der Bot selbst —
+  er akzeptiert `username`/`userName`/`handle` und
+  `fullName`/`full_name`/`name`.
+* **Achtung, Richtung:** Ein Actor mit „following" im Namen liefert oft die
+  Accounts, denen jemand *folgt* — nicht die Follower. Das ist die
+  Gegenrichtung. Beim voreingestellten Actor steuert das Feld `resultsType`,
+  das in `APIFY_INPUT` auf `followers` steht.
+
+**Alternative: eigenes Instagram-Konto.** Kostet nichts, dafür trägt dein Konto
+das Risiko (Drosselung, Sicherheits-Check). Nimm dafür besser nicht deinen
+Hauptaccount. Ein frisch angelegtes Konto fällt besonders schnell auf, wenn es
+sofort tausende Profile abruft — lass es ein paar Tage normal stehen und starte
+dann klein mit `/scan name 200 instagram`. Ein neues Konto sieht die
+Followerliste eines **privaten** Profils außerdem erst, wenn es ihm folgen darf.
+
+*Cookie auslesen:* am Computer mit diesem Konto bei instagram.com einloggen →
+F12 → Tab **Application** (Firefox: **Speicher**) → **Cookies** →
+`https://www.instagram.com` → den Wert von **`sessionid`** kopieren. Das ist
+dein `IG_SESSIONID`.
+
+### 3. Zugangsdaten bei GitHub hinterlegen
 
 Im Repository: **Settings → Secrets and variables → Actions → New repository
-secret**. Zwei Secrets anlegen:
+secret**:
 
-| Name | Wert |
-| --- | --- |
-| `TELEGRAM_BOT_TOKEN` | das Token vom BotFather |
-| `IG_SESSIONID` | der Cookie-Wert aus Schritt 2 |
+| Name | Wert | nötig für |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | das Token vom BotFather | immer |
+| `APIFY_TOKEN` | dein Apify-API-Token | Quelle Apify |
+| `IG_SESSIONID` | der Cookie-Wert aus Schritt 2 | Quelle Instagram |
 
 Secrets sind auch bei einem öffentlichen Repository nicht einsehbar.
 
@@ -78,7 +111,9 @@ Optional, im selben Bereich unter dem Reiter **Variables**:
 
 | Name | Wofür |
 | --- | --- |
-| `TELEGRAM_ALLOWED_USERNAME` | Telegram-Benutzername, der den Bot bedienen darf. Voreingestellt ist `vvalora` — nur du kannst ihm also Befehle geben. |
+| `TELEGRAM_ALLOWED_USERNAME` | Telegram-Benutzername, der den Bot bedienen darf. Voreingestellt `vvalora` — nur du kannst ihm Befehle geben. |
+| `BOT_SOURCE` | `apify` (Vorgabe) oder `instagram` |
+| `APIFY_ACTOR`, `APIFY_INPUT`, `APIFY_DEFAULT_LIMIT`, `APIFY_PRICE_PER_1000` | siehe Schritt 2 |
 
 Falls dein Telegram-Konto **keinen** Benutzernamen hat, stattdessen das Secret
 `TELEGRAM_CHAT_ID` mit deiner numerischen Chat-ID anlegen (bekommst du z.B. von
@@ -103,17 +138,21 @@ er die Ergebnisse melden soll.
 | --- | --- |
 | `/scan vikavalora` | startet den Scan dieser Followerliste |
 | `/scan vikavalora 500` | prüft nur die ersten 500 Follower (gut zum Ausprobieren) |
+| `/scan vikavalora 500 instagram` | dieser eine Scan über das eigene Cookie statt über Apify |
 | `/status` | Zwischenstand: wie viele Profile geprüft, wie viele Treffer |
 | `/stop` | hält den Scan an (Stand bleibt gespeichert) |
 | `/weiter` | macht dort weiter, wo es aufgehört hat |
 | `/liste` | schickt die komplette Trefferliste noch einmal, inkl. CSV-Datei |
 | `/hilfe` | Übersicht aller Befehle |
 
-**Wie schnell geht das?** Eine Etappe dauert 45 Minuten und schafft dabei rund
-11.000 Profile. Immer wenn 1000 weitere Profile geprüft sind, schickt er dir die
-neu gefundenen Treffer; am Ende kommt die vollständige Liste und eine CSV-Datei
-mit allen Spalten. Eine Followerliste mit 50.000 Einträgen ist also nach etwa
-fünf Stunden durch.
+**Wie schnell geht das?** Über **Apify** bestimmt der Scraper das Tempo: Der Bot
+stößt den Lauf an, liest ein paar Minuten lang mit und holt den Rest bei den
+nächsten Etappen nach — je nach Größe der Liste innerhalb von ein bis wenigen
+Stunden. Über das **eigene Cookie** arbeitet er selbst: 45 Minuten je Etappe,
+rund 11.000 Profile, eine Liste mit 50.000 Einträgen also in etwa fünf Stunden.
+
+In beiden Fällen gilt: Immer wenn 1000 weitere Profile geprüft sind, kommen die
+neu gefundenen Treffer; am Ende die vollständige Liste plus CSV-Datei.
 
 **Wie schnell antwortet er?** Neue Befehle liest er, wenn die nächste Etappe
 startet — bis zu eine Stunde später. Während ein Scan läuft, macht das wenig
@@ -130,6 +169,10 @@ Scan starten, ganz ohne Telegram.
 Und stimmt der Telegram-Benutzername in `TELEGRAM_ALLOWED_USERNAME`? Er
 ignoriert alle anderen Absender stillschweigend — in den Logs unter *Actions*
 steht dann „Nachricht von @… ignoriert".
+
+**„Apify-Guthaben aufgebraucht" / „Apify lehnt das Token ab".** Im Apify-Konto
+nachsehen. Der Bot hält an und behält deinen Stand; nach dem Aufladen bzw. dem
+Erneuern des Secrets geht es mit `/weiter` da weiter, wo er war.
 
 **„Das Instagram-Cookie ist abgelaufen".** Schritt 2 wiederholen, das Secret
 `IG_SESSIONID` aktualisieren (Settings → Secrets → auf den Namen klicken →
@@ -163,6 +206,8 @@ Alles steht in `.github/workflows/instagram-korean-bot.yml` unter `env:`:
 | `BOT_STAGE_SIZE` | `1000` | nach so vielen geprüften Profilen kommen die neuen Treffer |
 | `BOT_MAX_LIST` | `500` | so viele Treffer stehen am Ende direkt im Chat, der Rest nur in der CSV-Datei |
 | `BOT_MAX_HITS` | `20000` | Obergrenze gespeicherter Treffer |
+| `APIFY_WAIT_SECONDS` | `150` | wie lange eine Etappe auf neue Apify-Daten wartet, bevor sie endet (längeres Warten kostet nur GitHub-Minuten — der Scraper läuft bei Apify weiter) |
+| `APIFY_BLOCK_SIZE` | `500` | wie viele Ergebnisse pro Abruf aus dem Apify-Datensatz gelesen werden |
 
 ---
 

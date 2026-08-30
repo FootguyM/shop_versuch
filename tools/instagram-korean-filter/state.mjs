@@ -13,10 +13,13 @@ export const LEERER_ZUSTAND = {
   archiv: [], // kurze Zusammenfassungen abgeschlossener Scans
 };
 
-export function neuerAuftrag(username, limit = null) {
+export function neuerAuftrag(username, limit = null, quelle = 'apify') {
   return {
     username,
+    quelle, // 'apify' (fremder Scraper) oder 'instagram' (eigenes Cookie)
     userId: null,
+    // Nur fuer die Apify-Quelle: laufender Auftrag und Leseposition im Datensatz.
+    apify: { runId: null, datasetId: null, offset: 0, runStatus: null },
     cursor: null, // Position in der Followerliste -- macht das Fortsetzen moeglich
     checked: 0,
     gemeldet: 0, // wie viele Treffer bereits per Etappen-Nachricht raus sind

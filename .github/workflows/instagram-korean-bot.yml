@@ -63,6 +63,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_ALLOWED_USERNAME: ${{ vars.TELEGRAM_ALLOWED_USERNAME || 'vvalora' }}
+          # Quelle der Followerliste: 'apify' (fertiger Scraper, kein eigener
+          # Instagram-Login) oder 'instagram' (eigenes Session-Cookie).
+          BOT_SOURCE: ${{ vars.BOT_SOURCE || 'apify' }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          APIFY_ACTOR: ${{ vars.APIFY_ACTOR || 'scraping_solutions/instagram-scraper-followers-following-no-cookies' }}
+          # Eingabe fuer den Actor; leer lassen heisst: Vorgabe aus bot.mjs.
+          # Platzhalter {{username}} und {{limit}} werden eingesetzt.
+          APIFY_INPUT: ${{ vars.APIFY_INPUT }}
+          # Obergrenze je Scan, wenn im Befehl keine Zahl steht -- schuetzt
+          # davor, versehentlich viel Apify-Guthaben auszugeben.
+          APIFY_DEFAULT_LIMIT: ${{ vars.APIFY_DEFAULT_LIMIT || '1000' }}
+          # Nur fuer die Kostenschaetzung in der Startmeldung (US-Dollar/1000).
+          APIFY_PRICE_PER_1000: ${{ vars.APIFY_PRICE_PER_1000 || '2.5' }}
+          # Nur fuer die Quelle 'instagram':
           IG_SESSIONID: ${{ secrets.IG_SESSIONID }}
           BOT_STATE_FILE: .botstate/state.json
           # Wie lange eine Etappe hoechstens arbeitet (der Lauf darf 55 Min).

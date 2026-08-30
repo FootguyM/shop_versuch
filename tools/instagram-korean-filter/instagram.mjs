@@ -29,6 +29,7 @@ export class InstagramError extends Error {
 export function createClient(sessionId, { delay = 1500, onNotice = () => {} } = {}) {
   if (!sessionId) {
     throw new InstagramError('Kein sessionid-Cookie uebergeben.', {
+      status: 401,
       hint: 'Umgebungsvariable IG_SESSIONID setzen (siehe README).',
     });
   }

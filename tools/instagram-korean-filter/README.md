@@ -12,8 +12,10 @@ verändert nichts an ihm.
 
 ## Lieber per Telegram vom Handy?
 
-Es gibt zusätzlich einen Telegram-Bot, der kostenlos bei GitHub läuft, die
-Followerliste in Etappen abarbeitet und dir die Treffer laufend schickt.
+Es gibt zusätzlich einen Telegram-Bot, der bei GitHub Actions läuft, die
+Followerliste in Etappen abarbeitet und dir die Treffer laufend schickt. Er holt
+die Liste wahlweise über einen fertigen Scraper bei Apify (ohne eigenen
+Instagram-Login, kostet pro Ergebnis) oder über dein eigenes Session-Cookie.
 Einrichtung und Bedienung: **[BOT.md](BOT.md)**.
 
 Der Rest dieser Seite beschreibt das Kommandozeilen-Werkzeug für den eigenen
