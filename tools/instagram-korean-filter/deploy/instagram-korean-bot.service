@@ -1,0 +1,40 @@
+# Systemd-Dienst fuer den Telegram-Bot auf dem Raspberry Pi.
+#
+# Einrichten (Pfade und Benutzer ggf. anpassen):
+#   sudo cp deploy/instagram-korean-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now instagram-korean-bot
+#
+# Nachsehen, was er tut:
+#   systemctl status instagram-korean-bot
+#   journalctl -u instagram-korean-bot -f
+
+[Unit]
+Description=Telegram-Bot: Instagram-Follower mit koreanischen Profilnamen
+Documentation=https://github.com/FootguyM/shop_versuch/blob/main/tools/instagram-korean-filter/BOT.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/shop_versuch/tools/instagram-korean-filter
+ExecStart=/usr/bin/node bot.mjs
+
+# Nach einem Absturz oder Neustart des Pi von selbst wieder hochkommen.
+Restart=always
+RestartSec=30
+
+# Beim Stoppen bekommt der Bot SIGTERM und sichert seinen Stand noch.
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+# Etwas Absicherung -- der Bot braucht nur sein eigenes Verzeichnis.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/shop_versuch/tools/instagram-korean-filter
+
+[Install]
+WantedBy=multi-user.target
