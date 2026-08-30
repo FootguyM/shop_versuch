@@ -328,7 +328,8 @@ async function etappeArbeiten(tg, state) {
         break;
       }
       if (etappeVoll) {
-        await etappeMelden(tg, chatId, job);
+        // Waehrend des Laufs nur melden, wenn es auch etwas zu melden gibt.
+        if (job.hits.length > job.gemeldet) await etappeMelden(tg, chatId, job);
         job.gemeldetBei = job.checked;
       }
       // Leichte Streuung der Pause -- gleichmaessige Abstaende fallen eher auf.

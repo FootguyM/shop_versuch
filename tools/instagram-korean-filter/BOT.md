@@ -13,13 +13,20 @@ nicht über den Shop. Du brauchst dafür nur dein Handy: Telegram öffnen,
 
 ## Zuerst drei ehrliche Hinweise
 
-1. **Das Repository ist öffentlich.** Der Bot legt seinen Zwischenstand — also
-   auch die gefundenen Namen — im Zweig `bot-state` ab, und der ist damit für
-   alle lesbar. Wenn dir das nicht recht ist: Repository auf **privat**
-   umstellen (GitHub → Settings → General → ganz unten „Change repository
-   visibility"). Dann sind pro Monat 2000 Action-Minuten frei — dafür in
-   `.github/workflows/instagram-korean-bot.yml` die Zeile `- cron: '*/15 * * * *'`
-   auf `'*/30 * * * *'` ändern, damit es reicht.
+1. **Der Zwischenstand liegt im Repository.** Der Bot legt ihn — also auch die
+   gefundenen Namen — im Zweig `bot-state` ab. Bei einem **öffentlichen**
+   Repository kann den jeder lesen. Der Workflow ist deshalb auf ein
+   **privates** Repository eingestellt (GitHub → Settings → General → ganz
+   unten „Change repository visibility"). Der Shop bei Vercel läuft mit einem
+   privaten Repository unverändert weiter.
+
+   Privat heißt: 2000 Action-Minuten pro Monat gratis, und GitHub rundet jeden
+   Lauf auf volle Minuten auf. Deshalb schaut der Bot nur **stündlich** nach
+   neuen Befehlen, arbeitet dann aber 45 Minuten am Stück. Das kostet rund 720
+   Minuten im Monat fürs Nachschauen und lässt genug Rest für die Scans.
+   Wenn du das Repository öffentlich lässt, sind die Minuten unbegrenzt — dann
+   in `.github/workflows/instagram-korean-bot.yml` ruhig `- cron: '7 * * * *'`
+   auf `'*/15 * * * *'` ändern, dann reagiert er viertelstündlich.
 2. **Instagram mag automatische Abfragen nicht**, und Anfragen aus einem
    Rechenzentrum (wie bei GitHub) fallen stärker auf als von zu Hause. Der Bot
    arbeitet deshalb betont langsam. Trotzdem kann es passieren, dass Instagram
@@ -39,9 +46,19 @@ In Telegram **@BotFather** anschreiben → `/newbot` → Namen und Benutzernamen
 vergeben. Am Ende bekommst du ein Token der Form
 `123456789:AAH...`. Das ist dein `TELEGRAM_BOT_TOKEN`.
 
-### 2. Instagram-Cookie auslesen
+### 2. Instagram-Konto wählen und Cookie auslesen
 
-Am Computer bei instagram.com einloggen → F12 → Tab **Application**
+Der Bot braucht ein eingeloggtes Instagram-Konto, weil Followerlisten ohne
+Login nicht abrufbar sind. Nimm dafür besser **nicht** deinen Hauptaccount.
+
+Falls du ein neues anlegst (instagram.com → Registrieren, dauert zwei Minuten):
+Ein frisch erstelltes Konto fällt Instagram besonders schnell auf, wenn es
+sofort tausende Profile abruft — lass es ein paar Tage normal stehen, folge
+ein paar Accounts, und starte erst dann mit einem kleinen `/scan name 200`.
+Und: Ein neues Konto sieht die Followerliste eines **privaten** Profils erst,
+wenn es ihm folgt und die Anfrage angenommen wurde.
+
+**Cookie auslesen:** Am Computer mit diesem Konto bei instagram.com einloggen → F12 → Tab **Application**
 (Firefox: **Speicher**) → **Cookies** → `https://www.instagram.com` → den Wert
 von **`sessionid`** kopieren. Das ist dein `IG_SESSIONID`.
 
@@ -92,13 +109,15 @@ er die Ergebnisse melden soll.
 | `/liste` | schickt die komplette Trefferliste noch einmal, inkl. CSV-Datei |
 | `/hilfe` | Übersicht aller Befehle |
 
-**Wie schnell geht das?** Der Bot prüft rund 2500 Profile pro Etappe und
-startet alle 15 Minuten eine neue — also ungefähr 10.000 Profile pro Stunde.
-Nach jeweils 500 geprüften Profilen bekommst du die neu gefundenen Treffer
-geschickt, am Ende die vollständige Liste und eine CSV-Datei mit allen Spalten.
+**Wie schnell geht das?** Eine Etappe dauert 45 Minuten und schafft dabei rund
+11.000 Profile. Immer wenn 1000 weitere Profile geprüft sind, schickt er dir die
+neu gefundenen Treffer; am Ende kommt die vollständige Liste und eine CSV-Datei
+mit allen Spalten. Eine Followerliste mit 50.000 Einträgen ist also nach etwa
+fünf Stunden durch.
 
-**Wie schnell antwortet er?** Befehle liest er beim nächsten Durchlauf, also
-innerhalb von etwa 15 Minuten — nicht sofort. Wenn es schneller gehen soll:
+**Wie schnell antwortet er?** Neue Befehle liest er, wenn die nächste Etappe
+startet — bis zu eine Stunde später. Während ein Scan läuft, macht das wenig
+aus, weil er dir die Treffer von sich aus schickt. Wenn es sofort losgehen soll:
 GitHub-App oder Website → **Actions** → „Instagram-Korea-Bot" → **Run workflow**.
 Dort kannst du im Feld `account` auch direkt einen Account eintragen und den
 Scan starten, ganz ohne Telegram.
@@ -140,8 +159,8 @@ Alles steht in `.github/workflows/instagram-korean-bot.yml` unter `env:`:
 | --- | --- | --- |
 | `BOT_DELAY_MS` | `12000` | Pause zwischen zwei Abrufen (wird leicht zufällig gestreut) |
 | `BOT_PAGE_SIZE` | `50` | Profile pro Abruf |
-| `BOT_RUN_BUDGET_SECONDS` | `600` | wie lange eine Etappe höchstens arbeitet |
-| `BOT_STAGE_SIZE` | `500` | nach so vielen geprüften Profilen kommt eine Zwischenmeldung |
+| `BOT_RUN_BUDGET_SECONDS` | `2700` | wie lange eine Etappe höchstens arbeitet (45 Minuten) |
+| `BOT_STAGE_SIZE` | `1000` | nach so vielen geprüften Profilen kommen die neuen Treffer |
 | `BOT_MAX_LIST` | `500` | so viele Treffer stehen am Ende direkt im Chat, der Rest nur in der CSV-Datei |
 | `BOT_MAX_HITS` | `20000` | Obergrenze gespeicherter Treffer |
 
